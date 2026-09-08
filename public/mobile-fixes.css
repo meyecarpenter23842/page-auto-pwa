@@ -1,0 +1,183 @@
+/* Mobile shell: keep the PWA feeling anchored like a native app. */
+html, body, #root {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+html { background: #13243b !important; }
+body {
+  position: fixed !important;
+  inset: 0 !important;
+  margin: 0 !important;
+  background: #eef3f8 !important;
+  -webkit-text-size-adjust: 100%;
+}
+#root { display: flex; justify-content: center; }
+.app-shell {
+  width: min(100%, 460px) !important;
+  height: 100dvh !important;
+  min-height: 100svh !important;
+  max-height: 100dvh !important;
+  margin: 0 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  -webkit-touch-callout: none;
+}
+.topbar {
+  position: relative !important;
+  top: auto !important;
+  flex: 0 0 auto !important;
+}
+.main-area {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior-x: none !important;
+  overscroll-behavior-y: contain !important;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.main-area::-webkit-scrollbar { display: none; }
+.route-frame { overflow-x: clip !important; }
+.bottom-nav {
+  width: min(100%, 460px) !important;
+  max-width: 460px !important;
+}
+
+/* Bottom tab labels: centered and stable on narrow iPhones. */
+.bottom-nav--interactive > button {
+  min-width: 0 !important;
+  padding-inline: 1px !important;
+  color: #7d8998 !important;
+}
+.bottom-nav--interactive > button.is-active { color: #147ed6 !important; }
+.bottom-nav--interactive > button > span:last-child {
+  width: 100% !important;
+  min-width: 0 !important;
+  display: block !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  line-height: 1.08 !important;
+  font-size: clamp(8.5px, 2.35vw, 10px) !important;
+  letter-spacing: -.02em !important;
+}
+
+/* Home cards: allow Vietnamese labels to wrap instead of overflowing. */
+.overview-card > div { min-width: 0 !important; overflow: hidden !important; }
+.overview-card > div > span {
+  min-height: 28px !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  line-height: 1.2 !important;
+}
+.overview-card > div > strong,
+.overview-card > div > small { color: #172033 !important; }
+.overview-card > div > small { color: #667588 !important; }
+
+/* Notification / settings copy alignment. */
+.secondary-screen,
+.secondary-hero,
+.settings-identity,
+.settings-card { text-align: left !important; }
+.secondary-hero,
+.settings-identity { align-items: center !important; }
+.secondary-hero > div,
+.settings-identity > div,
+.settings-card__head > div,
+.notice-card__body {
+  min-width: 0 !important;
+  align-items: flex-start !important;
+  text-align: left !important;
+}
+.secondary-hero h1,
+.secondary-hero p,
+.settings-identity h1,
+.settings-identity p,
+.settings-card__head span,
+.settings-card__head strong,
+.settings-row span,
+.settings-row strong,
+.notice-card__body strong,
+.notice-card__body > span,
+.notice-card__body small {
+  width: 100% !important;
+  text-align: left !important;
+}
+.secondary-hero p,
+.settings-identity p { max-width: 29ch; }
+
+/* Four real Page controls, always one compact row. */
+.remote-control__actions,
+.remote-control__actions--four {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+}
+.remote-button {
+  min-width: 0 !important;
+  min-height: 62px !important;
+  height: 62px !important;
+  padding: 7px 3px 6px !important;
+  gap: 3px !important;
+  border-radius: 11px !important;
+  border: 1px solid rgba(112, 133, 156, .13) !important;
+  box-shadow: 0 5px 13px rgba(18, 36, 59, .075) !important;
+  transition: transform 105ms ease, filter 105ms ease, box-shadow 140ms ease, opacity 140ms ease !important;
+}
+.remote-button span { width: 22px !important; height: 22px !important; }
+.remote-button svg { width: 21px !important; height: 21px !important; }
+.remote-button strong {
+  width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: clamp(8.4px, 2.4vw, 10px) !important;
+  line-height: 1.05 !important;
+  font-weight: 720 !important;
+  text-align: center !important;
+}
+.remote-button--stop { background: #ff4a43 !important; color: #fff !important; }
+.remote-button--start { background: #e8f7ef !important; color: #21a45c !important; }
+.remote-button--start strong { color: #197b48 !important; }
+.remote-button--pause { background: #fff1c9 !important; color: #b27613 !important; }
+.remote-button--resume { background: #e8f2ff !important; color: #187dcc !important; }
+.remote-button:not(:disabled):active {
+  transform: translateY(2px) scale(.94) !important;
+  filter: brightness(.96) !important;
+  box-shadow: 0 2px 5px rgba(18, 36, 59, .08) !important;
+}
+.remote-button:disabled {
+  opacity: .36 !important;
+  filter: saturate(.65) !important;
+}
+
+/* Stronger but still restrained touch response across the app. */
+.bottom-nav button:not(:disabled):active,
+.filter-chips button:not(:disabled):active,
+.week-strip button:not(:disabled):active,
+.activity-row:not(:disabled):active,
+.page-directory-row:not(:disabled):active,
+.day-schedule-row:not(:disabled):active,
+.notice-card:not(:disabled):active,
+.settings-action:not(:disabled):active {
+  transform: translateY(1px) scale(.965) !important;
+  filter: brightness(.985);
+}
+
+@media (max-width: 365px) {
+  .overview-card { padding-inline: 10px !important; gap: 8px !important; }
+  .overview-card__icon { width: 38px !important; height: 38px !important; flex-basis: 38px !important; }
+  .overview-card > div > span { font-size: 10px !important; }
+  .remote-control__actions, .remote-control__actions--four { gap: 4px !important; }
+  .remote-button { min-height: 58px !important; height: 58px !important; padding-inline: 2px !important; }
+  .remote-button span { width: 20px !important; height: 20px !important; }
+  .remote-button svg { width: 19px !important; height: 19px !important; }
+}
