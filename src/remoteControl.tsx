@@ -16,9 +16,10 @@ const VALID_FROM: Record<GroupPostCommandAction, ReadonlySet<RuntimeStatus>> = {
   stop: new Set(['starting', 'running', 'waiting_window', 'paused'])
 }
 
-function ControlIcon({ name }: { name: 'stop' | 'pause' | 'play' }) {
+function ControlIcon({ name }: { name: 'stop' | 'pause' | 'play' | 'resume' }) {
   if (name === 'stop') return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" /></svg>
   if (name === 'pause') return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="6" width="3.5" height="12" rx="1" fill="currentColor" /><rect x="13.5" y="6" width="3.5" height="12" rx="1" fill="currentColor" /></svg>
+  if (name === 'resume') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7v10M9 12h8M14 8l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 6 10 6-10 6z" fill="currentColor" /></svg>
 }
 
@@ -46,17 +47,27 @@ export function GroupPostRemoteControl({ page, pairing, online, onSnapshot }: {
     }
   }
 
-  const canStop = online && pairing !== null && pending === null && VALID_FROM.stop.has(page.runtimeStatus)
-  const canPause = online && pairing !== null && pending === null && VALID_FROM.pause.has(page.runtimeStatus)
-  const primaryAction: GroupPostCommandAction = page.runtimeStatus === 'paused' ? 'resume' : 'start'
-  const canPrimary = online && pairing !== null && pending === null && VALID_FROM[primaryAction].has(page.runtimeStatus)
-  const primaryLabel = primaryAction === 'resume' ? 'Tiếp tục' : 'Chạy ngay'
+  const ready = online && pairing !== null && pending === null
+  const can = (action: GroupPostCommandAction) => ready && VALID_FROM[action].has(page.runtimeStatus)
+  const controls: Array<{ action: GroupPostCommandAction; label: string; pendingLabel: string; icon: 'stop' | 'pause' | 'play' | 'resume'; tone: string }> = [
+    { action: 'stop', label: 'Dừng', pendingLabel: 'Đang dừng…', icon: 'stop', tone: 'stop' },
+    { action: 'start', label: 'Chạy', pendingLabel: 'Đang chạy…', icon: 'play', tone: 'start' },
+    { action: 'pause', label: 'Tạm dừng', pendingLabel: 'Đang tạm…', icon: 'pause', tone: 'pause' },
+    { action: 'resume', label: 'Tiếp tục', pendingLabel: 'Đang tiếp…', icon: 'resume', tone: 'resume' }
+  ]
 
   return <div className="remote-control" aria-label={`Điều khiển ${page.name}`}>
-    <div className="remote-control__actions">
-      <button className="remote-button remote-button--stop" type="button" disabled={!canStop} onClick={() => { void execute('stop') }}><span><ControlIcon name="stop" /></span><strong>{pending === 'stop' ? 'Đang dừng…' : 'Dừng'}</strong></button>
-      <button className="remote-button remote-button--pause" type="button" disabled={!canPause} onClick={() => { void execute('pause') }}><span><ControlIcon name="pause" /></span><strong>{pending === 'pause' ? 'Đang dừng…' : 'Tạm dừng'}</strong></button>
-      <button className="remote-button remote-button--primary" type="button" disabled={!canPrimary} onClick={() => { void execute(primaryAction) }}><span><ControlIcon name="play" /></span><strong>{pending === primaryAction ? 'Đang gửi…' : primaryLabel}</strong></button>
+    <div className="remote-control__actions remote-control__actions--four">
+      {controls.map(control => <button
+        className={`remote-button remote-button--${control.tone}`}
+        type="button"
+        key={control.action}
+        disabled={!can(control.action)}
+        onClick={() => { void execute(control.action) }}
+      >
+        <span><ControlIcon name={control.icon} /></span>
+        <strong>{pending === control.action ? control.pendingLabel : control.label}</strong>
+      </button>)}
     </div>
     {error && <p className="remote-control__error">{error}</p>}
   </div>
