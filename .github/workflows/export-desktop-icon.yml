@@ -1,0 +1,32 @@
+name: Export desktop icon
+
+on:
+  push:
+    branches: [tmp/export-desktop-icon]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout desktop icon source
+        uses: actions/checkout@v4
+        with:
+          repository: meyecarpenter23842/page-auto
+          ref: d72cc914032a31989e5fa69acb431aeb915ef0bc
+          path: desktop
+      - name: Copy icon
+        run: |
+          mkdir -p out
+          cp desktop/apps/desktop/resources/app-icon.png out/app-icon.png
+          file out/app-icon.png
+          sha256sum out/app-icon.png
+      - name: Upload icon
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-app-icon
+          path: out/app-icon.png
+          if-no-files-found: error
+          retention-days: 1
