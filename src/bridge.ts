@@ -105,6 +105,8 @@ export interface BridgeSnapshot {
 
 const DEFAULT_SNAPSHOT_ENDPOINT = '/api/relay/snapshot'
 
+let lastGoodSnapshot: { cacheKey: string; snapshot: BridgeSnapshot } | null = null
+
 export class PairingRequiredError extends Error {
   constructor() {
     super('PWA chưa được ghép với PAGE-AUTO trên máy tính.')
@@ -126,29 +128,55 @@ function snapshotEndpoint(): { url: string; requiresPairing: boolean } {
     : { url: DEFAULT_SNAPSHOT_ENDPOINT, requiresPairing: true }
 }
 
+function freshCachedSnapshot(cacheKey: string): BridgeSnapshot | null {
+  if (!lastGoodSnapshot || lastGoodSnapshot.cacheKey !== cacheKey) return null
+  return isSnapshotFresh(lastGoodSnapshot.snapshot) ? lastGoodSnapshot.snapshot : null
+}
+
+function clearCachedSnapshot(cacheKey: string): void {
+  if (lastGoodSnapshot?.cacheKey === cacheKey) lastGoodSnapshot = null
+}
+
 export async function fetchBridgeSnapshot(pairing: RelayPairing | null, signal?: AbortSignal): Promise<BridgeSnapshot> {
   const endpoint = snapshotEndpoint()
   if (endpoint.requiresPairing && !pairing) throw new PairingRequiredError()
 
+  const cacheKey = endpoint.requiresPairing ? `device:${pairing?.deviceId ?? ''}` : `url:${endpoint.url}`
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (endpoint.requiresPairing && pairing) {
     headers.Authorization = `Bearer ${pairing.token}`
     headers['X-Page-Auto-Device-Id'] = pairing.deviceId
   }
 
-  const response = await fetch(endpoint.url, {
-    method: 'GET',
-    cache: 'no-store',
-    headers,
-    signal
-  })
-  if (response.status === 401) throw new BridgeAuthError()
-  if (!response.ok) throw new Error(`Bridge HTTP ${response.status}`)
-  const payload = await response.json() as Partial<BridgeSnapshot>
-  if (payload.schemaVersion !== 1 || typeof payload.generatedAt !== 'number' || !Array.isArray(payload.pages)) {
-    throw new Error('Bridge snapshot không hợp lệ.')
+  try {
+    const response = await fetch(endpoint.url, {
+      method: 'GET',
+      cache: 'no-store',
+      headers,
+      signal
+    })
+    if (response.status === 401) {
+      clearCachedSnapshot(cacheKey)
+      throw new BridgeAuthError()
+    }
+    if (!response.ok) throw new Error(`Bridge HTTP ${response.status}`)
+    const payload = await response.json() as Partial<BridgeSnapshot>
+    if (payload.schemaVersion !== 1 || typeof payload.generatedAt !== 'number' || !Array.isArray(payload.pages)) {
+      throw new Error('Bridge snapshot không hợp lệ.')
+    }
+
+    const snapshot = payload as BridgeSnapshot
+    if (isSnapshotFresh(snapshot)) {
+      lastGoodSnapshot = { cacheKey, snapshot }
+      return snapshot
+    }
+    return freshCachedSnapshot(cacheKey) ?? snapshot
+  } catch (error) {
+    if (error instanceof BridgeAuthError || signal?.aborted) throw error
+    const cached = freshCachedSnapshot(cacheKey)
+    if (cached) return cached
+    throw error
   }
-  return payload as BridgeSnapshot
 }
 
 export function isSnapshotFresh(snapshot: BridgeSnapshot, now = Date.now()): boolean {
