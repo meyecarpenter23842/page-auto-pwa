@@ -110,6 +110,33 @@ jobs:
           printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_TEAM_ID" "$project_id" > .vercel/project.json
           echo "Linked exact Vercel project: $project_name ($project_id)"
 
+      - name: Ensure private Blob relay store
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          env_file="$(mktemp)"
+          cleanup() { rm -f "$env_file"; }
+          trap cleanup EXIT
+
+          vercel env pull "$env_file" --environment=production --yes --token="$VERCEL_TOKEN" >/dev/null
+          if ! grep -q '^BLOB_READ_WRITE_TOKEN=' "$env_file"; then
+            vercel blob create-store page-auto-pwa-relay \
+              --access private \
+              --environment production \
+              --yes \
+              --token="$VERCEL_TOKEN"
+            : > "$env_file"
+            vercel env pull "$env_file" --environment=production --yes --token="$VERCEL_TOKEN" >/dev/null
+          fi
+
+          if ! grep -q '^BLOB_READ_WRITE_TOKEN=' "$env_file"; then
+            echo "Private Blob relay store is not connected to production." >&2
+            exit 1
+          fi
+          echo "Private Blob relay storage is connected."
+
       - name: Deploy source to production with remote Vercel build
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
