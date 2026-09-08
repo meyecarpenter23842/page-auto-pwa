@@ -1,5 +1,5 @@
-import { parseRelayCredentials, relayTokenMatches } from '../../server/relayProtocol'
-import { loadRelayRecord, relayStorageConfigured } from '../../server/relayStorage'
+import { parseRelayCredentials, relayTokenMatches } from '../../server/relayProtocol.js'
+import { loadRelayRecord, relayStorageConfigured } from '../../server/relayStorage.js'
 
 function json(payload: unknown, status = 200, extraHeaders?: Record<string, string>): Response {
   return Response.json(payload, {

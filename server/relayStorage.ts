@@ -1,5 +1,5 @@
 import { get, put } from '@vercel/blob'
-import { RELAY_RECORD_PATH, isRelayRecord, type RelayRecord } from './relayProtocol'
+import { RELAY_RECORD_PATH, isRelayRecord, type RelayRecord } from './relayProtocol.js'
 
 export function relayStorageConfigured(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim())
