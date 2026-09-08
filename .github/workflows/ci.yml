@@ -23,5 +23,7 @@ jobs:
         run: npx tsc -p tsconfig.app.json --noEmit --pretty false
       - name: Typecheck Vite config
         run: npx tsc -p tsconfig.node.json --noEmit --pretty false
+      - name: Typecheck relay API
+        run: npx tsc -p tsconfig.api.json --noEmit --pretty false
       - name: Build
         run: npx vite build

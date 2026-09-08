@@ -1,9 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import ReactDOM from 'react-dom/client'
-import { fetchBridgeSnapshot, isSnapshotFresh, type BridgePage, type BridgeSnapshot, type RuntimeStatus } from './bridge'
+import {
+  BridgeAuthError,
+  PairingRequiredError,
+  fetchBridgeSnapshot,
+  isSnapshotFresh,
+  type BridgePage,
+  type BridgeSnapshot,
+  type RuntimeStatus
+} from './bridge'
+import {
+  clearRelayPairing,
+  consumePairingFromLocation,
+  loadRelayPairing,
+  parseRelayPairing,
+  saveRelayPairing,
+  type RelayPairing
+} from './pairing'
 import './styles.css'
 
-type ConnectionState = 'connecting' | 'online' | 'offline'
+type ConnectionState = 'connecting' | 'online' | 'offline' | 'unpaired' | 'unauthorized'
 
 const DAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
 const STATUS_LABELS: Record<RuntimeStatus, string> = {
@@ -129,20 +145,27 @@ function PageCard({ page }: { page: BridgePage }) {
   )
 }
 
-function useBridge() {
+function useBridge(pairing: RelayPairing | null) {
   const [snapshot, setSnapshot] = useState<BridgeSnapshot | null>(null)
-  const [connection, setConnection] = useState<ConnectionState>('connecting')
+  const [connection, setConnection] = useState<ConnectionState>(pairing ? 'connecting' : 'unpaired')
 
   useEffect(() => {
+    if (!pairing) {
+      setSnapshot(null)
+      setConnection('unpaired')
+      return
+    }
+
     let disposed = false
     let activeController: AbortController | null = null
+    setConnection('connecting')
 
     const refresh = async () => {
       activeController?.abort()
       const controller = new AbortController()
       activeController = controller
       try {
-        const next = await fetchBridgeSnapshot(controller.signal)
+        const next = await fetchBridgeSnapshot(pairing, controller.signal)
         if (disposed) return
         if (!isSnapshotFresh(next)) {
           setSnapshot(null)
@@ -151,10 +174,12 @@ function useBridge() {
         }
         setSnapshot(next)
         setConnection('online')
-      } catch {
+      } catch (error) {
         if (disposed || controller.signal.aborted) return
         setSnapshot(null)
-        setConnection('offline')
+        if (error instanceof PairingRequiredError) setConnection('unpaired')
+        else if (error instanceof BridgeAuthError) setConnection('unauthorized')
+        else setConnection('offline')
       }
     }
 
@@ -165,7 +190,7 @@ function useBridge() {
       activeController?.abort()
       window.clearInterval(timer)
     }
-  }, [])
+  }, [pairing?.deviceId, pairing?.token])
 
   return { snapshot, connection }
 }
@@ -180,8 +205,42 @@ function MetricCard({ label, value, note, tone = 'plain' }: { label: string; val
   )
 }
 
+const pairingInputStyle: React.CSSProperties = {
+  width: '100%',
+  marginTop: 10,
+  padding: '10px 11px',
+  border: '1px solid #c8dff5',
+  borderRadius: 9,
+  background: '#fff',
+  color: '#18212f',
+  fontSize: 10.5,
+  outline: 'none'
+}
+
+const pairingButtonStyle: React.CSSProperties = {
+  marginTop: 8,
+  padding: '8px 12px',
+  border: 0,
+  borderRadius: 9,
+  background: '#1684e8',
+  color: '#fff',
+  fontSize: 10,
+  fontWeight: 800,
+  cursor: 'pointer'
+}
+
+const secondaryButtonStyle: React.CSSProperties = {
+  ...pairingButtonStyle,
+  marginLeft: 8,
+  background: '#e4edf7',
+  color: '#36536f'
+}
+
 function App() {
-  const { snapshot, connection } = useBridge()
+  const [pairing, setPairing] = useState<RelayPairing | null>(() => consumePairingFromLocation() ?? loadRelayPairing())
+  const [pairingInput, setPairingInput] = useState('')
+  const [pairingError, setPairingError] = useState<string | null>(null)
+  const { snapshot, connection } = useBridge(pairing)
   const pages = useMemo(() => [...(snapshot?.pages ?? [])].sort((a, b) => {
     const aActive = ['running', 'starting', 'waiting_window'].includes(a.runtimeStatus) ? 0 : 1
     const bActive = ['running', 'starting', 'waiting_window'].includes(b.runtimeStatus) ? 0 : 1
@@ -189,13 +248,42 @@ function App() {
   }), [snapshot])
   const isOnline = connection === 'online' && snapshot !== null
 
+  const applyPairing = () => {
+    try {
+      const next = parseRelayPairing(pairingInput)
+      saveRelayPairing(next)
+      setPairing(next)
+      setPairingInput('')
+      setPairingError(null)
+    } catch (error) {
+      setPairingError(error instanceof Error ? error.message : 'Mã ghép không hợp lệ.')
+    }
+  }
+
+  const forgetPairing = () => {
+    clearRelayPairing()
+    setPairing(null)
+    setPairingInput('')
+    setPairingError(null)
+  }
+
+  const connectionLabel = connection === 'connecting'
+    ? 'Đang nối'
+    : isOnline
+      ? 'Desktop Online'
+      : connection === 'unpaired'
+        ? 'Chưa ghép máy'
+        : connection === 'unauthorized'
+          ? 'Sai mã ghép'
+          : 'Desktop Offline'
+
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-mark">PA</div>
         <div className="brand-copy"><strong>PAGE AUTO</strong><span>Group Scheduler</span></div>
         <div className={`connection-badge connection-badge--${connection}`}>
-          <i />{connection === 'connecting' ? 'Đang nối' : isOnline ? 'Desktop Online' : 'Desktop Offline'}
+          <i />{connectionLabel}
         </div>
       </header>
 
@@ -212,12 +300,35 @@ function App() {
           </div>
         </section>
 
-        {!isOnline && (
+        {!pairing && (
           <section className="offline-banner">
             <div className="offline-icon">⌁</div>
-            <div>
-              <strong>Chưa nhận được dữ liệu từ máy tính</strong>
-              <p>Mở PAGE-AUTO trên Windows và giữ ứng dụng hoạt động. Dashboard sẽ tự kết nối lại.</p>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <strong>Ghép PWA với PAGE-AUTO trên máy tính</strong>
+              <p>Mở file <b>data/pwa-relay/pairing.txt</b> trên máy tính rồi mở link trong file bằng điện thoại, hoặc dán mã ghép bên dưới.</p>
+              <input
+                style={pairingInputStyle}
+                value={pairingInput}
+                onChange={(event) => setPairingInput(event.target.value)}
+                placeholder="Dán link hoặc mã ghép"
+                autoCapitalize="off"
+                autoCorrect="off"
+              />
+              <button style={pairingButtonStyle} type="button" onClick={applyPairing}>Ghép máy</button>
+              {pairingError && <p style={{ color: '#c63f3f', marginTop: 7 }}>{pairingError}</p>}
+            </div>
+          </section>
+        )}
+
+        {pairing && !isOnline && (
+          <section className="offline-banner">
+            <div className="offline-icon">⌁</div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <strong>{connection === 'unauthorized' ? 'Mã ghép không khớp máy tính' : 'Chưa nhận được dữ liệu từ máy tính'}</strong>
+              <p>{connection === 'unauthorized'
+                ? 'Ghép lại bằng link mới trong file pairing.txt của PAGE-AUTO.'
+                : 'Mở PAGE-AUTO trên Windows và giữ ứng dụng hoạt động. Dashboard sẽ tự kết nối lại.'}</p>
+              {connection === 'unauthorized' && <button style={secondaryButtonStyle} type="button" onClick={forgetPairing}>Đổi máy</button>}
             </div>
           </section>
         )}
@@ -238,8 +349,12 @@ function App() {
             {pages.length > 0 ? pages.map((page) => <PageCard key={page.pageTabId} page={page} />) : (
               <div className="empty-card">
                 <div className="empty-icon">P</div>
-                <strong>{isOnline ? 'Chưa có Page hẹn giờ nhóm' : 'Đang chờ PAGE-AUTO'}</strong>
-                <p>{isOnline ? 'Tạo hoặc cấu hình Page Tab trên desktop để Page xuất hiện tại đây.' : 'Khi desktop kết nối, danh sách Page và tiến độ thật sẽ xuất hiện tự động.'}</p>
+                <strong>{isOnline ? 'Chưa có Page hẹn giờ nhóm' : pairing ? 'Đang chờ PAGE-AUTO' : 'Chưa ghép máy tính'}</strong>
+                <p>{isOnline
+                  ? 'Tạo hoặc cấu hình Page Tab trên desktop để Page xuất hiện tại đây.'
+                  : pairing
+                    ? 'Khi desktop kết nối, danh sách Page và tiến độ thật sẽ xuất hiện tự động.'
+                    : 'Ghép thiết bị một lần để dashboard nhận dữ liệu từ PAGE-AUTO.'}</p>
               </div>
             )}
           </div>

@@ -1,3 +1,5 @@
+import type { RelayPairing } from './pairing'
+
 export type RuntimeStatus =
   | 'idle'
   | 'starting'
@@ -101,20 +103,46 @@ export interface BridgeSnapshot {
   recentLogs: BridgeLog[]
 }
 
-const DEFAULT_SNAPSHOT_ENDPOINT = '/api/pwa/snapshot'
+const DEFAULT_SNAPSHOT_ENDPOINT = '/api/relay/snapshot'
 
-function snapshotEndpoint(): string {
-  const configured = import.meta.env.VITE_PAGE_AUTO_SNAPSHOT_URL?.trim()
-  return configured || DEFAULT_SNAPSHOT_ENDPOINT
+export class PairingRequiredError extends Error {
+  constructor() {
+    super('PWA chưa được ghép với PAGE-AUTO trên máy tính.')
+    this.name = 'PairingRequiredError'
+  }
 }
 
-export async function fetchBridgeSnapshot(signal?: AbortSignal): Promise<BridgeSnapshot> {
-  const response = await fetch(snapshotEndpoint(), {
+export class BridgeAuthError extends Error {
+  constructor() {
+    super('Mã ghép PWA không còn hợp lệ.')
+    this.name = 'BridgeAuthError'
+  }
+}
+
+function snapshotEndpoint(): { url: string; requiresPairing: boolean } {
+  const configured = import.meta.env.VITE_PAGE_AUTO_SNAPSHOT_URL?.trim()
+  return configured
+    ? { url: configured, requiresPairing: false }
+    : { url: DEFAULT_SNAPSHOT_ENDPOINT, requiresPairing: true }
+}
+
+export async function fetchBridgeSnapshot(pairing: RelayPairing | null, signal?: AbortSignal): Promise<BridgeSnapshot> {
+  const endpoint = snapshotEndpoint()
+  if (endpoint.requiresPairing && !pairing) throw new PairingRequiredError()
+
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  if (endpoint.requiresPairing && pairing) {
+    headers.Authorization = `Bearer ${pairing.token}`
+    headers['X-Page-Auto-Device-Id'] = pairing.deviceId
+  }
+
+  const response = await fetch(endpoint.url, {
     method: 'GET',
     cache: 'no-store',
-    headers: { Accept: 'application/json' },
+    headers,
     signal
   })
+  if (response.status === 401) throw new BridgeAuthError()
   if (!response.ok) throw new Error(`Bridge HTTP ${response.status}`)
   const payload = await response.json() as Partial<BridgeSnapshot>
   if (payload.schemaVersion !== 1 || typeof payload.generatedAt !== 'number' || !Array.isArray(payload.pages)) {
