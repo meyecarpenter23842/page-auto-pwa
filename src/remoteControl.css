@@ -1,37 +1,10 @@
-.remote-control {
-  margin-top: 2px;
-  padding: 11px 0 12px;
-  border-top: 1px solid #edf0f3;
-}
-.remote-control__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
-.remote-control__head > div { min-width: 0; }
-.remote-control__head strong { display: block; color: #354153; font-size: 10px; }
-.remote-control__head span { display: block; margin-top: 2px; color: #929cab; font-size: 8px; }
-.remote-control__head small { color: #1676cb; font-size: 8px; font-weight: 750; text-align: right; }
-.remote-control__actions {
-  margin-top: 8px;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-}
-.remote-button {
-  min-height: 31px;
-  border: 1px solid #dce3eb;
-  border-radius: 8px;
-  background: #f6f8fb;
-  color: #465569;
-  font-size: 8.5px;
-  font-weight: 800;
-  cursor: pointer;
-}
-.remote-button--start { background: #eaf8f0; border-color: #d0eddc; color: #16874d; }
-.remote-button--pause { background: #fff5dc; border-color: #f6e4b2; color: #a86c00; }
-.remote-button--resume { background: #eaf4ff; border-color: #d1e6fb; color: #1477cf; }
-.remote-button--stop { background: #fdeeee; border-color: #f5d6d6; color: #c43d3d; }
-.remote-button:disabled { opacity: .38; cursor: default; filter: grayscale(.15); }
-.remote-control__error { margin: 7px 0 0; color: #c43d3d; font-size: 8.5px; line-height: 1.4; }
+.remote-control { width: 100%; }
+.remote-control__actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.remote-button { min-height:88px; padding:12px 8px 11px; border:1px solid transparent; border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; cursor:pointer; transition:transform .12s ease,opacity .12s ease; -webkit-tap-highlight-color:transparent; }
+.remote-button:active:not(:disabled){transform:scale(.985)}
+.remote-button span{width:27px;height:27px;display:grid;place-items:center}.remote-button svg{width:25px;height:25px;display:block}.remote-button strong{font-size:13px;line-height:1.2;font-weight:750}
+.remote-button--stop{background:#ff4038;color:#fff;box-shadow:0 4px 12px rgba(255,64,56,.12)}
+.remote-button--pause{background:#ffc84a;color:#5d4708;box-shadow:0 4px 12px rgba(237,171,22,.12)}
+.remote-button--primary{background:#f1f4f7;color:#3fc979;border-color:#eef1f4}.remote-button--primary strong{color:#1f2937}
+.remote-button:disabled{cursor:default;opacity:.38;filter:saturate(.75)}
+.remote-control__error{margin:9px 2px 0;color:#d83c3c;font-size:11px;line-height:1.4}
