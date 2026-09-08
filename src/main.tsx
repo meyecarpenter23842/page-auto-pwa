@@ -7,9 +7,9 @@ import { AppBottomNav, AppTopBar, type AppView } from './navigation'
 import { NotificationScreen, SettingsScreen } from './secondaryScreens'
 import './styles.css'
 import './polish.css'
+import './pwaFixes.css'
 
 type SlideDirection = 'forward' | 'backward'
-type ViewTransitionDocument = Document & { startViewTransition?: (update: () => void) => { finished: Promise<void> } }
 const NAV_ORDER: AppView[] = ['overview', 'pages', 'schedule', 'notifications', 'settings']
 
 function useBridge(pairing: RelayPairing | null) {
@@ -76,12 +76,7 @@ function App() {
   const transition = (direction: SlideDirection, update: () => void) => {
     setSlideDirection(direction)
     setHasNavigated(true)
-    document.documentElement.dataset.navDirection = direction
-    const start = (document as ViewTransitionDocument).startViewTransition
-    if (start) {
-      const vt = start.call(document, update)
-      void vt.finished.catch(() => undefined)
-    } else update()
+    update()
   }
   const navigate = (next: AppView) => {
     if (next === view && selectedPageId === null) return

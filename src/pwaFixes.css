@@ -1,0 +1,41 @@
+/* Small compatibility layer for real Page avatars and crisp mobile navigation. */
+.page-avatar {
+  overflow: hidden;
+}
+
+.page-avatar > img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: inherit;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+img {
+  -webkit-user-drag: none;
+}
+
+/* Do not animate browser-captured page snapshots. They can look smeared on iOS. */
+.route-frame {
+  view-transition-name: none !important;
+}
+
+.route-frame--forward,
+.route-frame--backward {
+  animation: pwa-route-enter 140ms ease-out both !important;
+}
+
+@keyframes pwa-route-enter {
+  from { opacity: .94; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-frame--forward,
+  .route-frame--backward {
+    animation-duration: 1ms !important;
+  }
+}

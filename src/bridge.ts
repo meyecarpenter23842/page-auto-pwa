@@ -46,6 +46,7 @@ export interface BridgePage {
   pageTabId: number
   name: string
   pageUid: string
+  avatarDataUrl?: string | null
   configuredStatus: string
   runtimeStatus: RuntimeStatus
   runId: number | null
