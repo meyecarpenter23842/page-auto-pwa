@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import {
   BridgeAuthError,
   PairingRequiredError,
+  acceptBridgeSnapshot,
   fetchBridgeSnapshot,
   isSnapshotFresh,
   type BridgePage,
@@ -17,6 +18,7 @@ import {
   saveRelayPairing,
   type RelayPairing
 } from './pairing'
+import { GroupPostRemoteControl } from './remoteControl'
 import './styles.css'
 
 type ConnectionState = 'connecting' | 'online' | 'offline' | 'unpaired' | 'unauthorized'
@@ -67,7 +69,17 @@ function currentAccountLabel(page: BridgePage): string {
   return account.name?.trim() || account.uid
 }
 
-function PageCard({ page }: { page: BridgePage }) {
+function PageCard({
+  page,
+  pairing,
+  online,
+  onSnapshot
+}: {
+  page: BridgePage
+  pairing: RelayPairing | null
+  online: boolean
+  onSnapshot: (snapshot: BridgeSnapshot) => void
+}) {
   const progress = Math.max(0, Math.min(100, page.progress?.percent ?? 0))
   const visibleSchedules = page.schedules.slice(0, 3)
 
@@ -125,6 +137,8 @@ function PageCard({ page }: { page: BridgePage }) {
         <div><span>Thành công hôm nay</span><strong>{page.today.success}</strong></div>
         <div><span>Lỗi hôm nay</span><strong className={page.today.failed > 0 ? 'danger-text' : undefined}>{page.today.failed}</strong></div>
       </div>
+
+      <GroupPostRemoteControl page={page} pairing={pairing} online={online} onSnapshot={onSnapshot} />
 
       <div className="schedule-strip">
         <div className="schedule-title">
@@ -192,7 +206,14 @@ function useBridge(pairing: RelayPairing | null) {
     }
   }, [pairing?.deviceId, pairing?.token])
 
-  return { snapshot, connection }
+  const acceptSnapshot = (next: BridgeSnapshot) => {
+    if (!pairing || !isSnapshotFresh(next)) return
+    const accepted = acceptBridgeSnapshot(pairing, next)
+    setSnapshot((current) => current && current.generatedAt > accepted.generatedAt ? current : accepted)
+    setConnection('online')
+  }
+
+  return { snapshot, connection, acceptSnapshot }
 }
 
 function MetricCard({ label, value, note, tone = 'plain' }: { label: string; value: React.ReactNode; note: string; tone?: 'plain' | 'success' | 'danger' }) {
@@ -240,7 +261,7 @@ function App() {
   const [pairing, setPairing] = useState<RelayPairing | null>(() => consumePairingFromLocation() ?? loadRelayPairing())
   const [pairingInput, setPairingInput] = useState('')
   const [pairingError, setPairingError] = useState<string | null>(null)
-  const { snapshot, connection } = useBridge(pairing)
+  const { snapshot, connection, acceptSnapshot } = useBridge(pairing)
   const pages = useMemo(() => [...(snapshot?.pages ?? [])].sort((a, b) => {
     const aActive = ['running', 'starting', 'waiting_window'].includes(a.runtimeStatus) ? 0 : 1
     const bActive = ['running', 'starting', 'waiting_window'].includes(b.runtimeStatus) ? 0 : 1
@@ -292,7 +313,7 @@ function App() {
           <div>
             <span className="section-kicker">BẢNG ĐIỀU KHIỂN</span>
             <h1>Hẹn giờ đăng nhóm</h1>
-            <p>Theo dõi các Page đang chạy trực tiếp từ PAGE-AUTO trên máy tính.</p>
+            <p>Theo dõi và điều khiển các Page đang chạy trực tiếp từ PAGE-AUTO trên máy tính.</p>
           </div>
           <div className="sync-box">
             <span>Lần đồng bộ</span>
@@ -346,7 +367,9 @@ function App() {
             <span className="count-badge">{pages.length}</span>
           </div>
           <div className="page-list">
-            {pages.length > 0 ? pages.map((page) => <PageCard key={page.pageTabId} page={page} />) : (
+            {pages.length > 0 ? pages.map((page) => (
+              <PageCard key={page.pageTabId} page={page} pairing={pairing} online={isOnline} onSnapshot={acceptSnapshot} />
+            )) : (
               <div className="empty-card">
                 <div className="empty-icon">P</div>
                 <strong>{isOnline ? 'Chưa có Page hẹn giờ nhóm' : pairing ? 'Đang chờ PAGE-AUTO' : 'Chưa ghép máy tính'}</strong>
