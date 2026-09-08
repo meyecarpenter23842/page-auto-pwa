@@ -22,15 +22,16 @@ jobs:
           python -m pip install --quiet pillow
           python - <<'PY'
           from PIL import Image
-          import base64, io
           image = Image.open('ui-tham-khao.jpg').convert('RGB')
-          image.thumbnail((512, 342), Image.Resampling.LANCZOS)
-          out = io.BytesIO()
-          image.save(out, format='JPEG', quality=82, optimize=True)
-          print('REF_PREVIEW_BASE64_BEGIN')
-          print(base64.b64encode(out.getvalue()).decode('ascii'))
-          print('REF_PREVIEW_BASE64_END')
+          image.thumbnail((1024, 683), Image.Resampling.LANCZOS)
+          image.save('/tmp/ui-reference-preview.jpg', format='JPEG', quality=90, optimize=True)
           PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-reference-preview
+          path: /tmp/ui-reference-preview.jpg
+          if-no-files-found: error
+          retention-days: 1
       - name: Install dependencies
         run: npm install
       - name: Typecheck app
