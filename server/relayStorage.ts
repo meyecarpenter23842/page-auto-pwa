@@ -6,7 +6,7 @@ export function relayStorageConfigured(): boolean {
 }
 
 export async function loadRelayRecord(): Promise<RelayRecord | null> {
-  const result = await get(RELAY_RECORD_PATH, { access: 'private' })
+  const result = await get(RELAY_RECORD_PATH, { access: 'private', useCache: false })
   if (!result || result.statusCode !== 200) return null
   const raw = await new Response(result.stream).text()
   const parsed = JSON.parse(raw) as unknown
