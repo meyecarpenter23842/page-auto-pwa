@@ -21,6 +21,9 @@ jobs:
     concurrency:
       group: page-auto-pwa-production
       cancel-in-progress: false
+    env:
+      VERCEL_ORG_ID: team_964e6EsImAKgZe01NQmUNF7F
+      VERCEL_PROJECT_NAME: page-auto-pwa
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,30 +59,58 @@ jobs:
           node-version: 22
 
       - name: Install pinned Vercel CLI
-        run: npm install --global vercel@58.0.0
+        run: npm install --global vercel@59.11.7
 
-      - name: Link exact Vercel project
+      - name: Resolve or create exact Vercel project
         shell: bash
         env:
-          VERCEL_ORG_ID: team_964e6EsImAKgZe01NQmUNF7F
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
-          test -n "$VERCEL_PROJECT_ID"
+          test -n "$VERCEL_TOKEN"
+
+          response_file="$(mktemp)"
+          status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_NAME?teamId=$VERCEL_ORG_ID")"
+
+          if [ "$status" = "404" ]; then
+            create_file="$(mktemp)"
+            create_status="$(curl --silent --show-error \
+              --request POST \
+              --output "$create_file" \
+              --write-out '%{http_code}' \
+              --url "https://api.vercel.com/v11/projects?teamId=$VERCEL_ORG_ID" \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              --header "Content-Type: application/json" \
+              --data '{"name":"page-auto-pwa","framework":"vite","buildCommand":"npm run build","outputDirectory":"dist","skipGitConnectDuringLink":true}')"
+            if [ "$create_status" != "200" ] && [ "$create_status" != "201" ]; then
+              echo "Vercel project create failed with HTTP $create_status" >&2
+              cat "$create_file" >&2
+              exit 1
+            fi
+            response_file="$create_file"
+          elif [ "$status" != "200" ]; then
+            echo "Vercel project lookup failed with HTTP $status" >&2
+            cat "$response_file" >&2
+            exit 1
+          fi
+
+          project_id="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(x.id||'')" "$response_file")"
+          project_name="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(x.name||'')" "$response_file")"
+          account_id="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(x.accountId||'')" "$response_file")"
+
+          test -n "$project_id"
+          test "$project_name" = "$VERCEL_PROJECT_NAME"
+          test "$account_id" = "$VERCEL_ORG_ID"
+
           mkdir -p .vercel
-          printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+          printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$project_id" > .vercel/project.json
+          echo "Linked exact Vercel project: $project_name ($project_id)"
 
-      - name: Pull production settings
+      - name: Deploy source to production with remote Vercel build
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-
-      - name: Build production artifact
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel build --prod --token="$VERCEL_TOKEN"
-
-      - name: Deploy exact artifact to production
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+        run: vercel deploy --prod --yes --token="$VERCEL_TOKEN"
