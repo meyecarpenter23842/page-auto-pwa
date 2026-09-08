@@ -24,4 +24,4 @@ jobs:
       - name: Typecheck Vite config
         run: npx tsc -p tsconfig.node.json --noEmit --pretty false
       - name: Build
-        run: vite build
+        run: npx vite build
