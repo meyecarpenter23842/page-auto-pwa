@@ -44,7 +44,7 @@ function tone(s:RuntimeStatus):'green'|'blue'|'orange'|'red'|'gray'{if(s==='runn
 function scheduleState(s:WindowRuntimeStatus|null){if(s==='running')return{label:'Đang chạy',tone:'blue'} as const;if(s==='closed_account_cycle'||s==='closed_time_remaining_accounts')return{label:'Đã chạy xong',tone:'green'} as const;return{label:'Chưa chạy',tone:'gray'} as const}
 export function isActiveStatus(s:RuntimeStatus){return s==='running'||s==='starting'||s==='waiting_window'}
 function isScheduledStatus(s:RuntimeStatus){return s==='idle'||s==='waiting_window'||s==='stopped'||s==='completed'}
-function Avatar({page,size='md'}:{page:BridgePage;size?:'sm'|'md'|'lg'}){return <span className={`page-avatar page-avatar--${size} page-avatar--v${page.pageTabId%6+1}`} aria-hidden="true">{page.name.trim().charAt(0).toUpperCase()||'P'}</span>}
+function Avatar({page,size='md'}:{page:BridgePage;size?:'sm'|'md'|'lg'}){const avatar=page.avatarDataUrl?.trim();return <span className={`page-avatar page-avatar--${size} page-avatar--v${page.pageTabId%6+1}`} aria-hidden="true">{avatar?<img src={avatar} alt="" draggable={false}/>:page.name.trim().charAt(0).toUpperCase()||'P'}</span>}
 
 export function TopBar({subtitle,connection,showConnection=false,back=false,onBack}:{subtitle:string;connection:ConnectionState;showConnection?:boolean;back?:boolean;onBack?:()=>void}){
   const online=connection==='online'
