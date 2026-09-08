@@ -5,28 +5,45 @@ on:
     branches: [tmp/export-desktop-icon]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   export:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout PWA polish branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/pwa-ui-polish
+          path: pwa
       - name: Checkout desktop icon source
         uses: actions/checkout@v4
         with:
           repository: meyecarpenter23842/page-auto
           ref: d72cc914032a31989e5fa69acb431aeb915ef0bc
           path: desktop
-      - name: Copy icon
+      - name: Create exact desktop icon variants
         run: |
-          mkdir -p out
-          cp desktop/apps/desktop/resources/app-icon.png out/app-icon.png
-          file out/app-icon.png
-          sha256sum out/app-icon.png
-      - name: Upload icon
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-app-icon
-          path: out/app-icon.png
-          if-no-files-found: error
-          retention-days: 1
+          python -m pip install --quiet pillow
+          python - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          src = Path('desktop/apps/desktop/resources/app-icon.png')
+          out = Path('pwa/public')
+          out.mkdir(parents=True, exist_ok=True)
+          original = Image.open(src).convert('RGBA')
+          original.save(out / 'app-icon-512.png')
+          original.resize((192, 192), Image.Resampling.LANCZOS).save(out / 'app-icon-192.png')
+          print('desktop', original.size)
+          print('pwa-192', Image.open(out / 'app-icon-192.png').size)
+          print('pwa-512', Image.open(out / 'app-icon-512.png').size)
+          PY
+          sha256sum desktop/apps/desktop/resources/app-icon.png pwa/public/app-icon-512.png pwa/public/app-icon-192.png
+      - name: Commit assets to polish branch
+        working-directory: pwa
+        run: |
+          git config user.name "page-auto-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add public/app-icon-192.png public/app-icon-512.png
+          git commit -m "chore: sync desktop app icons"
+          git push origin HEAD:feat/pwa-ui-polish
