@@ -6,8 +6,8 @@ import {
   relayTokenHash,
   relayTokenMatches,
   type RelayRecord
-} from '../../server/relayProtocol'
-import { loadRelayRecord, relayStorageConfigured, saveRelayRecord } from '../../server/relayStorage'
+} from '../../server/relayProtocol.js'
+import { loadRelayRecord, relayStorageConfigured, saveRelayRecord } from '../../server/relayStorage.js'
 
 function json(payload: unknown, status = 200): Response {
   return Response.json(payload, {
