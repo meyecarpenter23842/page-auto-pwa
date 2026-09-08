@@ -19,7 +19,9 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Typecheck app
+        run: npx tsc -p tsconfig.app.json --noEmit --pretty false
+      - name: Typecheck Vite config
+        run: npx tsc -p tsconfig.node.json --noEmit --pretty false
       - name: Build
-        run: npm run build
+        run: vite build
