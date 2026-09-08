@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Typecheck app
+        run: npx tsc -p tsconfig.app.json --noEmit --pretty false
+      - name: Typecheck Vite config
+        run: npx tsc -p tsconfig.node.json --noEmit --pretty false
+      - name: Build
+        run: npx vite build
