@@ -22,7 +22,7 @@ jobs:
       group: page-auto-pwa-production
       cancel-in-progress: false
     env:
-      VERCEL_ORG_ID: team_964e6EsImAKgZe01NQmUNF7F
+      VERCEL_TEAM_ID: team_964e6EsImAKgZe01NQmUNF7F
       VERCEL_PROJECT_NAME: page-auto-pwa
     steps:
       - uses: actions/checkout@v4
@@ -74,7 +74,7 @@ jobs:
             --output "$response_file" \
             --write-out '%{http_code}' \
             --header "Authorization: Bearer $VERCEL_TOKEN" \
-            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_NAME?teamId=$VERCEL_ORG_ID")"
+            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_NAME?teamId=$VERCEL_TEAM_ID")"
 
           if [ "$status" = "404" ]; then
             create_file="$(mktemp)"
@@ -82,7 +82,7 @@ jobs:
               --request POST \
               --output "$create_file" \
               --write-out '%{http_code}' \
-              --url "https://api.vercel.com/v11/projects?teamId=$VERCEL_ORG_ID" \
+              --url "https://api.vercel.com/v11/projects?teamId=$VERCEL_TEAM_ID" \
               --header "Authorization: Bearer $VERCEL_TOKEN" \
               --header "Content-Type: application/json" \
               --data '{"name":"page-auto-pwa","framework":"vite","buildCommand":"npm run build","outputDirectory":"dist","skipGitConnectDuringLink":true}')"
@@ -104,10 +104,10 @@ jobs:
 
           test -n "$project_id"
           test "$project_name" = "$VERCEL_PROJECT_NAME"
-          test "$account_id" = "$VERCEL_ORG_ID"
+          test "$account_id" = "$VERCEL_TEAM_ID"
 
           mkdir -p .vercel
-          printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$project_id" > .vercel/project.json
+          printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_TEAM_ID" "$project_id" > .vercel/project.json
           echo "Linked exact Vercel project: $project_name ($project_id)"
 
       - name: Deploy source to production with remote Vercel build
