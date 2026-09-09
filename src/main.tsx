@@ -11,6 +11,7 @@ import './pwaFixes.css'
 
 type SlideDirection = 'forward' | 'backward'
 const NAV_ORDER: AppView[] = ['overview', 'pages', 'schedule', 'notifications', 'settings']
+const BRIDGE_REFRESH_INTERVAL_MS = 15_000
 
 function useBridge(pairing: RelayPairing | null) {
   const [snapshot, setSnapshot] = useState<BridgeSnapshot | null>(null)
@@ -37,7 +38,7 @@ function useBridge(pairing: RelayPairing | null) {
       }
     }
     void refresh()
-    const timer = window.setInterval(() => void refresh(), 5000)
+    const timer = window.setInterval(() => void refresh(), BRIDGE_REFRESH_INTERVAL_MS)
     return () => { disposed = true; controller?.abort(); window.clearInterval(timer) }
   }, [pairing?.deviceId, pairing?.token])
   const acceptSnapshot = (next: BridgeSnapshot) => {
