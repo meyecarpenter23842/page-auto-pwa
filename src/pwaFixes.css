@@ -18,6 +18,19 @@ img {
   -webkit-user-drag: none;
 }
 
+/* iOS Home Screen PWA: WebKit can report 100dvh without the bottom safe-area.
+   In standalone mode 100vh spans the full installed-app viewport. */
+@media all and (display-mode: standalone) {
+  html,
+  body,
+  #root,
+  .app-shell {
+    height: 100vh !important;
+    min-height: 100vh !important;
+    max-height: 100vh !important;
+  }
+}
+
 /* Do not animate browser-captured page snapshots. They can look smeared on iOS. */
 .route-frame {
   view-transition-name: none !important;
