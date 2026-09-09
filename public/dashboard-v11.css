@@ -1,0 +1,223 @@
+/* Dashboard v11: one compact overview card + slim Page controls. */
+.overview-screen {
+  padding-top: 18px !important;
+}
+
+.overview-screen .overview-cards {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  padding: 70px 8px 14px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(116, 137, 160, .16) !important;
+  border-radius: 18px !important;
+  background: linear-gradient(155deg, rgba(255,255,255,.99), rgba(248,251,254,.96)) !important;
+  box-shadow: 0 10px 28px rgba(18,36,59,.075), 0 2px 6px rgba(18,36,59,.035) !important;
+}
+
+.overview-screen .overview-cards::before {
+  content: 'Tổng quan';
+  position: absolute;
+  top: 17px;
+  left: 18px;
+  color: #172338;
+  font-size: 19px;
+  line-height: 1.1;
+  font-weight: 730;
+  letter-spacing: -.025em;
+}
+
+.overview-screen .overview-cards::after {
+  content: 'Cập nhật trạng thái hoạt động của các Page';
+  position: absolute;
+  top: 42px;
+  left: 18px;
+  right: 18px;
+  overflow: hidden;
+  color: #78869a;
+  font-size: 10.5px;
+  line-height: 1.2;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-screen .overview-card {
+  position: relative !important;
+  min-width: 0 !important;
+  min-height: 102px !important;
+  padding: 9px 5px 4px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 7px !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.overview-screen .overview-card + .overview-card {
+  border-left: 1px solid rgba(116, 137, 160, .16) !important;
+}
+
+.overview-screen .overview-card::after {
+  display: none !important;
+}
+
+.overview-screen .overview-card__icon {
+  width: 36px !important;
+  height: 36px !important;
+  flex: 0 0 36px !important;
+  box-shadow: none !important;
+}
+
+.overview-screen .overview-card--blue .overview-card__icon {
+  color: #1686e8 !important;
+  background: #e5f2ff !important;
+}
+.overview-screen .overview-card--gray .overview-card__icon {
+  color: #61758d !important;
+  background: #edf1f5 !important;
+}
+.overview-screen .overview-card--green .overview-card__icon {
+  color: #1faa60 !important;
+  background: #e5f8ec !important;
+}
+.overview-screen .overview-card--red .overview-card__icon {
+  color: #e33d36 !important;
+  background: #ffebe9 !important;
+}
+
+.overview-screen .overview-card > div {
+  width: 100% !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  overflow: visible !important;
+  text-align: center !important;
+}
+
+.overview-screen .overview-card > div > span {
+  width: 100% !important;
+  min-height: 27px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+  color: #425268 !important;
+  font-size: 10px !important;
+  line-height: 1.15 !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  white-space: normal !important;
+}
+
+.overview-screen .overview-card > div > strong {
+  margin-top: 0 !important;
+  color: #12213a !important;
+  font-size: 27px !important;
+  line-height: .95 !important;
+  font-weight: 650 !important;
+  letter-spacing: -.04em !important;
+}
+
+.overview-screen .overview-card > div > small {
+  margin-top: 5px !important;
+  color: #758399 !important;
+  font-size: 9.5px !important;
+  line-height: 1.1 !important;
+  font-weight: 500 !important;
+  white-space: nowrap !important;
+}
+
+.overview-screen .dashboard-section {
+  margin-top: 22px !important;
+}
+
+/* CPU/RAM placeholders have no real metrics yet; keep them out of Overview. */
+.overview-screen .resource-block {
+  display: none !important;
+}
+
+/* Page detail controls: short rectangular toolbar buttons, not mini cards. */
+.control-section .remote-control__actions,
+.control-section .remote-control__actions--four {
+  gap: 5px !important;
+}
+
+.control-section .remote-button {
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 7px !important;
+  gap: 4px !important;
+  border-radius: 7px !important;
+  box-shadow: 0 2px 5px rgba(18,36,59,.045) !important;
+}
+
+.control-section .remote-button span {
+  width: 13px !important;
+  height: 13px !important;
+  flex: 0 0 13px !important;
+}
+
+.control-section .remote-button svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+.control-section .remote-button strong {
+  font-size: clamp(8.5px, 2.2vw, 10px) !important;
+  line-height: 1 !important;
+  font-weight: 700 !important;
+}
+
+@media (max-width: 365px) {
+  .overview-screen .overview-cards {
+    padding: 66px 5px 11px !important;
+  }
+  .overview-screen .overview-cards::before {
+    top: 15px;
+    left: 14px;
+    font-size: 18px;
+  }
+  .overview-screen .overview-cards::after {
+    top: 39px;
+    left: 14px;
+    right: 14px;
+    font-size: 9.7px;
+  }
+  .overview-screen .overview-card {
+    min-height: 96px !important;
+    padding: 8px 3px 3px !important;
+    gap: 6px !important;
+  }
+  .overview-screen .overview-card__icon {
+    width: 33px !important;
+    height: 33px !important;
+    flex-basis: 33px !important;
+  }
+  .overview-screen .overview-card__icon svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+  .overview-screen .overview-card > div > span {
+    min-height: 25px !important;
+    font-size: 9px !important;
+  }
+  .overview-screen .overview-card > div > strong {
+    font-size: 24px !important;
+  }
+  .overview-screen .overview-card > div > small {
+    font-size: 8.5px !important;
+  }
+  .control-section .remote-button {
+    min-height: 30px !important;
+    height: 30px !important;
+    padding-inline: 5px !important;
+  }
+}
