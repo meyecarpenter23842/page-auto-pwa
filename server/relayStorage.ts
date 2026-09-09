@@ -8,12 +8,32 @@ import {
   type RelayRecord
 } from './relayProtocol.js'
 
+type BlobAuthOptions = {
+  token?: string
+  oidcToken?: string
+  storeId?: string
+}
+
+function blobAuthOptions(): BlobAuthOptions {
+  const oidcToken = process.env.VERCEL_OIDC_TOKEN?.trim()
+  const storeId = process.env.PAGE_AUTO_RELAY_BLOB_STORE_ID?.trim()
+  if (oidcToken && storeId) return { oidcToken, storeId }
+
+  const token = process.env.BLOB_READ_WRITE_TOKEN?.trim()
+  return token ? { token } : {}
+}
+
 export function relayStorageConfigured(): boolean {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim())
+  const auth = blobAuthOptions()
+  return Boolean(auth.token || (auth.oidcToken && auth.storeId))
 }
 
 export async function loadRelayRecord(): Promise<RelayRecord | null> {
-  const result = await get(RELAY_RECORD_PATH, { access: 'private', useCache: false })
+  const result = await get(RELAY_RECORD_PATH, {
+    ...blobAuthOptions(),
+    access: 'private',
+    useCache: false
+  })
   if (!result || result.statusCode !== 200) return null
   const raw = await new Response(result.stream).text()
   const parsed = JSON.parse(raw) as unknown
@@ -23,6 +43,7 @@ export async function loadRelayRecord(): Promise<RelayRecord | null> {
 
 export async function saveRelayRecord(record: RelayRecord): Promise<void> {
   await put(RELAY_RECORD_PATH, JSON.stringify(record), {
+    ...blobAuthOptions(),
     access: 'private',
     addRandomSuffix: false,
     allowOverwrite: true,
@@ -31,7 +52,11 @@ export async function saveRelayRecord(record: RelayRecord): Promise<void> {
 }
 
 export async function loadRelayCommandRecord(): Promise<RelayCommandRecord | null> {
-  const result = await get(RELAY_COMMAND_RECORD_PATH, { access: 'private', useCache: false })
+  const result = await get(RELAY_COMMAND_RECORD_PATH, {
+    ...blobAuthOptions(),
+    access: 'private',
+    useCache: false
+  })
   if (!result || result.statusCode !== 200) return null
   const raw = await new Response(result.stream).text()
   const parsed = JSON.parse(raw) as unknown
@@ -41,6 +66,7 @@ export async function loadRelayCommandRecord(): Promise<RelayCommandRecord | nul
 
 export async function saveRelayCommandRecord(record: RelayCommandRecord): Promise<void> {
   await put(RELAY_COMMAND_RECORD_PATH, JSON.stringify(record), {
+    ...blobAuthOptions(),
     access: 'private',
     addRandomSuffix: false,
     allowOverwrite: true,
