@@ -13,7 +13,20 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/app-icon-192.png?v=5" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v5.png" />
     <link rel="apple-touch-icon-precomposed" sizes="180x180" href="/apple-touch-icon-v5.png" />
-    <link rel="stylesheet" href="/mobile-fixes.css?v=8" />
+    <link rel="stylesheet" href="/mobile-fixes.css?v=10" />
+    <style>
+      @media (display-mode: standalone) {
+        html, body, #root {
+          height: 100vh !important;
+          min-height: 100vh !important;
+        }
+        .app-shell {
+          height: 100vh !important;
+          min-height: 100vh !important;
+          max-height: 100vh !important;
+        }
+      }
+    </style>
     <title>Page Auto</title>
   </head>
   <body>
