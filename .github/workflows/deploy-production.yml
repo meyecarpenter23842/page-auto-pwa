@@ -110,7 +110,7 @@ jobs:
           printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_TEAM_ID" "$project_id" > .vercel/project.json
           echo "Linked exact Vercel project: $project_name ($project_id)"
 
-      - name: Ensure private Blob relay store
+      - name: Ensure healthy private Blob relay store
         shell: bash
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -120,22 +120,56 @@ jobs:
           cleanup() { rm -f "$env_file"; }
           trap cleanup EXIT
 
-          vercel env pull "$env_file" --environment=production --yes --token="$VERCEL_TOKEN" >/dev/null
-          if ! grep -q '^BLOB_READ_WRITE_TOKEN=' "$env_file"; then
-            vercel blob create-store page-auto-pwa-relay \
+          npm install --no-save --ignore-scripts --no-audit --no-fund @vercel/blob@latest >/dev/null
+
+          pull_production_env() {
+            : > "$env_file"
+            vercel env pull "$env_file" --environment=production --yes --token="$VERCEL_TOKEN" >/dev/null
+          }
+
+          probe_blob_access() {
+            unset BLOB_READ_WRITE_TOKEN || true
+            set -a
+            # Vercel env pull emits shell-compatible dotenv entries.
+            . "$env_file"
+            set +a
+            if [ -z "${BLOB_READ_WRITE_TOKEN:-}" ]; then
+              return 1
+            fi
+
+            node --input-type=module <<'NODE'
+          import { get } from '@vercel/blob'
+
+          try {
+            const result = await get('page-auto/relay/current.json', {
+              access: 'private',
+              useCache: false
+            })
+            if (result?.stream) await new Response(result.stream).arrayBuffer()
+          } catch (error) {
+            console.error(`Blob relay access probe failed: ${error instanceof Error ? error.name : 'unknown_error'}`)
+            process.exit(1)
+          }
+          NODE
+          }
+
+          pull_production_env
+          if ! probe_blob_access; then
+            echo "Blob relay token is missing or cannot read the private store; provisioning a replacement."
+            vercel env rm BLOB_READ_WRITE_TOKEN production --yes --token="$VERCEL_TOKEN" >/dev/null 2>&1 || true
+            vercel blob create-store "page-auto-pwa-relay-recovery-${GITHUB_RUN_ID}" \
               --access private \
               --environment production \
               --yes \
               --token="$VERCEL_TOKEN"
-            : > "$env_file"
-            vercel env pull "$env_file" --environment=production --yes --token="$VERCEL_TOKEN" >/dev/null
+            pull_production_env
+            if ! probe_blob_access; then
+              echo "Replacement private Blob relay store is still inaccessible." >&2
+              exit 1
+            fi
           fi
 
-          if ! grep -q '^BLOB_READ_WRITE_TOKEN=' "$env_file"; then
-            echo "Private Blob relay store is not connected to production." >&2
-            exit 1
-          fi
-          echo "Private Blob relay storage is connected."
+          echo "Private Blob relay storage read probe passed."
 
       - name: Deploy source to production with remote Vercel build
         env:
