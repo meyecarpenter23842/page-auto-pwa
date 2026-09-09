@@ -131,7 +131,7 @@ jobs:
           fi
 
           if ! has_redis_env; then
-            vercel integration add upstash \
+            vercel integration add upstash/upstash-kv \
               --name page-auto-pwa-relay \
               --plan free \
               --environment production \
