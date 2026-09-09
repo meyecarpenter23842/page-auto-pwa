@@ -110,71 +110,41 @@ jobs:
           printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_TEAM_ID" "$project_id" > .vercel/project.json
           echo "Linked exact Vercel project: $project_name ($project_id)"
 
-      - name: Restore and verify private Blob relay store
+      - name: Configure and verify Blob relay with project OIDC
         shell: bash
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
-          env_file="$(mktemp)"
           stores_file="$(mktemp)"
-          cleanup() { rm -f "$env_file" "$stores_file"; }
+          oidc_file="$(mktemp)"
+          env_response="$(mktemp)"
+          cleanup() { rm -f "$stores_file" "$oidc_file" "$env_response"; }
           trap cleanup EXIT
 
-          npm install --no-save --ignore-scripts --no-audit --no-fund @vercel/blob@latest >/dev/null
+          project_id="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('.vercel/project.json','utf8'));process.stdout.write(x.projectId||'')")"
+          test -n "$project_id"
 
-          pull_production_env() {
-            : > "$env_file"
-            vercel env pull "$env_file" --environment=production --yes --token="$VERCEL_TOKEN" >/dev/null
-          }
+          stores_status="$(curl --silent --show-error \
+            --output "$stores_file" \
+            --write-out '%{http_code}' \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v1/storage/stores?teamId=$VERCEL_TEAM_ID")"
+          if [ "$stores_status" != "200" ]; then
+            echo "Listing Vercel storage stores failed with HTTP $stores_status" >&2
+            exit 1
+          fi
 
-          probe_blob_access() {
-            unset BLOB_READ_WRITE_TOKEN || true
-            set -a
-            . "$env_file"
-            set +a
-            if [ -z "${BLOB_READ_WRITE_TOKEN:-}" ]; then
-              return 1
-            fi
-
-            node --input-type=module <<'NODE'
-          import { get } from '@vercel/blob'
-          try {
-            const result = await get('page-auto/relay/current.json', { access: 'private', useCache: false })
-            if (result?.stream) await new Response(result.stream).arrayBuffer()
-          } catch (error) {
-            console.error(`Blob relay access probe failed: ${error instanceof Error ? error.name : 'unknown_error'}`)
-            process.exit(1)
-          }
-          NODE
-          }
-
-          pull_production_env
-          if ! probe_blob_access; then
-            echo "Existing relay token is missing or invalid; restoring the token from the connected Blob store."
-            project_id="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('.vercel/project.json','utf8'));process.stdout.write(x.projectId||'')")"
-            test -n "$project_id"
-
-            stores_status="$(curl --silent --show-error \
-              --output "$stores_file" \
+          selected_store=""
+          while IFS= read -r store_id; do
+            [ -n "$store_id" ] || continue
+            connection_file="$(mktemp)"
+            connection_status="$(curl --silent --show-error \
+              --output "$connection_file" \
               --write-out '%{http_code}' \
               --header "Authorization: Bearer $VERCEL_TOKEN" \
-              "https://api.vercel.com/v1/storage/stores?teamId=$VERCEL_TEAM_ID")"
-            if [ "$stores_status" != "200" ]; then
-              echo "Listing Vercel storage stores failed with HTTP $stores_status" >&2
-              exit 1
-            fi
-
-            selected_store=""
-            while IFS= read -r store_id; do
-              [ -n "$store_id" ] || continue
-              connection_file="$(mktemp)"
-              connection_status="$(curl --silent --show-error \
-                --output "$connection_file" \
-                --write-out '%{http_code}' \
-                --header "Authorization: Bearer $VERCEL_TOKEN" \
-                "https://api.vercel.com/v1/storage/stores/$store_id/connections?teamId=$VERCEL_TEAM_ID")"
-              if [ "$connection_status" = "200" ] && node - "$connection_file" "$project_id" <<'NODE'
+              "https://api.vercel.com/v1/storage/stores/$store_id/connections?teamId=$VERCEL_TEAM_ID")"
+            if [ "$connection_status" = "200" ] && node - "$connection_file" "$project_id" <<'NODE'
           const fs = require('fs')
           const [file, projectId] = process.argv.slice(2)
           const payload = JSON.parse(fs.readFileSync(file, 'utf8'))
@@ -182,13 +152,13 @@ jobs:
           const ok = connections.some((entry) => entry.projectId === projectId && (!Array.isArray(entry.envVarEnvironments) || entry.envVarEnvironments.includes('production')))
           process.exit(ok ? 0 : 1)
           NODE
-              then
-                selected_store="$store_id"
-                rm -f "$connection_file"
-                break
-              fi
+            then
+              selected_store="$store_id"
               rm -f "$connection_file"
-            done < <(node - "$stores_file" <<'NODE'
+              break
+            fi
+            rm -f "$connection_file"
+          done < <(node - "$stores_file" <<'NODE'
           const fs = require('fs')
           const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'))
           const stores = Array.isArray(payload.stores) ? payload.stores : []
@@ -196,39 +166,61 @@ jobs:
             if (store?.type === 'blob' && store?.access === 'private' && typeof store.id === 'string') console.log(store.id)
           }
           NODE
-            )
+          )
 
-            if [ -z "$selected_store" ]; then
-              echo "No private Blob store connected to production for this project." >&2
-              exit 1
-            fi
-
-            secrets_file="$(mktemp)"
-            secrets_status="$(curl --silent --show-error \
-              --output "$secrets_file" \
-              --write-out '%{http_code}' \
-              --header "Authorization: Bearer $VERCEL_TOKEN" \
-              "https://api.vercel.com/v1/storage/stores/$selected_store/secrets?teamId=$VERCEL_TEAM_ID")"
-            if [ "$secrets_status" != "200" ]; then
-              echo "Reading Blob store secret failed with HTTP $secrets_status" >&2
-              rm -f "$secrets_file"
-              exit 1
-            fi
-            rw_token="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(x.rwToken||'')" "$secrets_file")"
-            rm -f "$secrets_file"
-            test -n "$rw_token"
-
-            vercel env rm BLOB_READ_WRITE_TOKEN production --yes --token="$VERCEL_TOKEN" >/dev/null 2>&1 || true
-            printf '%s' "$rw_token" | vercel env add BLOB_READ_WRITE_TOKEN production --sensitive --yes --token="$VERCEL_TOKEN" >/dev/null
-            unset rw_token
-            pull_production_env
-          fi
-
-          if ! probe_blob_access; then
-            echo "Private Blob relay store is still inaccessible after token restoration." >&2
+          if [ -z "$selected_store" ]; then
+            echo "No private Blob store connected to production for this project." >&2
             exit 1
           fi
-          echo "Private Blob relay storage read probe passed."
+
+          env_payload="$(node -e "process.stdout.write(JSON.stringify({key:'PAGE_AUTO_RELAY_BLOB_STORE_ID',value:process.argv[1],type:'plain',target:['production'],comment:'Page Auto relay Blob store id for OIDC auth'}))" "$selected_store")"
+          env_status="$(curl --silent --show-error \
+            --request POST \
+            --output "$env_response" \
+            --write-out '%{http_code}' \
+            --url "https://api.vercel.com/v10/projects/$project_id/env?upsert=true&teamId=$VERCEL_TEAM_ID" \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data "$env_payload")"
+          if [ "$env_status" != "200" ] && [ "$env_status" != "201" ]; then
+            echo "Saving relay Blob store id failed with HTTP $env_status" >&2
+            cat "$env_response" >&2
+            exit 1
+          fi
+
+          oidc_status="$(curl --silent --show-error \
+            --request POST \
+            --output "$oidc_file" \
+            --write-out '%{http_code}' \
+            --url "https://api.vercel.com/v1/projects/$project_id/token?teamId=$VERCEL_TEAM_ID" \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data '{"source":"page-auto-pwa:deploy-probe"}')"
+          if [ "$oidc_status" != "200" ]; then
+            echo "Generating project OIDC token failed with HTTP $oidc_status" >&2
+            exit 1
+          fi
+          oidc_token="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(x.token||'')" "$oidc_file")"
+          test -n "$oidc_token"
+
+          npm install --no-save --ignore-scripts --no-audit --no-fund @vercel/blob@latest >/dev/null
+          OIDC_TOKEN="$oidc_token" STORE_ID="$selected_store" node --input-type=module <<'NODE'
+          import { get } from '@vercel/blob'
+          try {
+            const result = await get('page-auto/relay/current.json', {
+              access: 'private',
+              oidcToken: process.env.OIDC_TOKEN,
+              storeId: process.env.STORE_ID,
+              useCache: false
+            })
+            if (result?.stream) await new Response(result.stream).arrayBuffer()
+          } catch (error) {
+            console.error(`Blob relay OIDC probe failed: ${error instanceof Error ? error.name : 'unknown_error'}`)
+            process.exit(1)
+          }
+          NODE
+          unset oidc_token
+          echo "Private Blob relay OIDC probe passed."
 
       - name: Deploy source to production with remote Vercel build
         env:
