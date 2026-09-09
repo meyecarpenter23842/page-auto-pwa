@@ -10,10 +10,12 @@ import {
   type RelayGroupPostCommand
 } from '../../server/relayProtocol.js'
 import {
-  loadRelayCommandRecord,
-  loadRelayRecord,
+  loadRelayCommandState,
+  relayHeartbeatNeedsTouch,
   relayStorageConfigured,
-  saveRelayCommandRecord
+  saveRelayCommandRecord,
+  touchRelayHeartbeat,
+  type RelayCommandState
 } from '../../server/relayStorage.js'
 
 const COMMAND_ID_PATTERN = /^[A-Za-z0-9_-]{16,80}$/
@@ -23,12 +25,11 @@ function json(payload: unknown, status = 200): Response {
   return Response.json(payload, { status, headers: { 'Cache-Control': 'no-store, max-age=0' } })
 }
 
-async function authorize(request: Request): Promise<{ deviceId: string } | Response> {
+function authorize(request: Request, state: RelayCommandState): { deviceId: string } | Response {
   const credentials = parseRelayCredentials(request, true)
   if (!credentials?.deviceId) return json({ error: 'unauthorized' }, 401)
-  const relay = await loadRelayRecord()
-  if (!relay) return json({ error: 'relay_unclaimed' }, 404)
-  if (relay.deviceId !== credentials.deviceId || !relayTokenMatches(relay.tokenHash, credentials.token)) {
+  if (!state.relay) return json({ error: 'relay_unclaimed' }, 404)
+  if (state.relay.deviceId !== credentials.deviceId || !relayTokenMatches(state.relay.tokenHash, credentials.token)) {
     return json({ error: 'unauthorized' }, 401)
   }
   return { deviceId: credentials.deviceId }
@@ -42,12 +43,20 @@ export default {
   async fetch(request: Request): Promise<Response> {
     if (request.method !== 'GET' && request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
     if (!relayStorageConfigured()) return json({ error: 'relay_storage_not_configured' }, 503)
-    const authorization = await authorize(request)
+
+    const state = await loadRelayCommandState()
+    const authorization = authorize(request, state)
     if (authorization instanceof Response) return authorization
 
     if (request.method === 'GET') {
-      const record = await loadRelayCommandRecord()
-      if (!record || record.deviceId !== authorization.deviceId || record.ack) return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store, max-age=0' } })
+      const now = Date.now()
+      if (relayHeartbeatNeedsTouch(state.heartbeat, authorization.deviceId, now)) {
+        await touchRelayHeartbeat(authorization.deviceId, now)
+      }
+      const record = state.command
+      if (!record || record.deviceId !== authorization.deviceId || record.ack) {
+        return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store, max-age=0' } })
+      }
       return json({ command: record.command })
     }
 
@@ -76,7 +85,7 @@ export default {
 
     const typedAction = action as RelayCommandAction
     const now = Date.now()
-    const existing = await loadRelayCommandRecord()
+    const existing = state.command
     if (existing?.deviceId === authorization.deviceId && existing.command.commandId === commandId) {
       if (!sameIntent(existing.command, pageTabId, typedAction)) return json({ error: 'command_conflict' }, 409)
       return json({ command: existing.command, status: existing.ack ? 'completed' : 'pending' }, existing.ack ? 200 : 202)

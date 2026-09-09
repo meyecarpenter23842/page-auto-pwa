@@ -10,8 +10,7 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit --pretty false && tsc -p tsconfig.node.json --noEmit --pretty false && tsc -p tsconfig.api.json --noEmit --pretty false"
   },
   "dependencies": {
-    "@vercel/blob": "latest",
-    "@vercel/oidc": "latest",
+    "@upstash/redis": "latest",
     "@vitejs/plugin-react": "latest",
     "vite": "latest",
     "typescript": "latest",
