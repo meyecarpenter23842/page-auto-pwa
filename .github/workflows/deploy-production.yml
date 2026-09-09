@@ -135,7 +135,6 @@ jobs:
               --name page-auto-pwa-relay \
               --plan free \
               --environment production \
-              --yes \
               --token="$VERCEL_TOKEN"
             pull_production_env
           fi
