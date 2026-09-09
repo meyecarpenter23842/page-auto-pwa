@@ -61,7 +61,7 @@ jobs:
       - name: Install pinned Vercel CLI
         run: npm install --global vercel@59.11.7
 
-      - name: Resolve or create exact Vercel project
+      - name: Resolve exact Vercel project
         shell: bash
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -75,24 +75,7 @@ jobs:
             --write-out '%{http_code}' \
             --header "Authorization: Bearer $VERCEL_TOKEN" \
             "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_NAME?teamId=$VERCEL_TEAM_ID")"
-
-          if [ "$status" = "404" ]; then
-            create_file="$(mktemp)"
-            create_status="$(curl --silent --show-error \
-              --request POST \
-              --output "$create_file" \
-              --write-out '%{http_code}' \
-              --url "https://api.vercel.com/v11/projects?teamId=$VERCEL_TEAM_ID" \
-              --header "Authorization: Bearer $VERCEL_TOKEN" \
-              --header "Content-Type: application/json" \
-              --data '{"name":"page-auto-pwa","framework":"vite","buildCommand":"npm run build","outputDirectory":"dist","skipGitConnectDuringLink":true}')"
-            if [ "$create_status" != "200" ] && [ "$create_status" != "201" ]; then
-              echo "Vercel project create failed with HTTP $create_status" >&2
-              cat "$create_file" >&2
-              exit 1
-            fi
-            response_file="$create_file"
-          elif [ "$status" != "200" ]; then
+          if [ "$status" != "200" ]; then
             echo "Vercel project lookup failed with HTTP $status" >&2
             cat "$response_file" >&2
             exit 1
@@ -101,6 +84,7 @@ jobs:
           project_id="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(x.id||'')" "$response_file")"
           project_name="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(x.name||'')" "$response_file")"
           account_id="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(x.accountId||'')" "$response_file")"
+          rm -f "$response_file"
 
           test -n "$project_id"
           test "$project_name" = "$VERCEL_PROJECT_NAME"
@@ -110,16 +94,15 @@ jobs:
           printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_TEAM_ID" "$project_id" > .vercel/project.json
           echo "Linked exact Vercel project: $project_name ($project_id)"
 
-      - name: Configure and verify Blob relay with project OIDC
+      - name: Configure existing Blob relay store
         shell: bash
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
           stores_file="$(mktemp)"
-          oidc_file="$(mktemp)"
           env_response="$(mktemp)"
-          cleanup() { rm -f "$stores_file" "$oidc_file" "$env_response"; }
+          cleanup() { rm -f "$stores_file" "$env_response"; }
           trap cleanup EXIT
 
           project_id="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('.vercel/project.json','utf8'));process.stdout.write(x.projectId||'')")"
@@ -188,39 +171,7 @@ jobs:
             exit 1
           fi
 
-          oidc_status="$(curl --silent --show-error \
-            --request POST \
-            --output "$oidc_file" \
-            --write-out '%{http_code}' \
-            --url "https://api.vercel.com/v1/projects/$project_id/token?teamId=$VERCEL_TEAM_ID" \
-            --header "Authorization: Bearer $VERCEL_TOKEN" \
-            --header "Content-Type: application/json" \
-            --data '{"source":"page-auto-pwa:deploy-probe"}')"
-          if [ "$oidc_status" != "200" ]; then
-            echo "Generating project OIDC token failed with HTTP $oidc_status" >&2
-            exit 1
-          fi
-          oidc_token="$(node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(x.token||'')" "$oidc_file")"
-          test -n "$oidc_token"
-
-          npm install --no-save --ignore-scripts --no-audit --no-fund @vercel/blob@latest >/dev/null
-          OIDC_TOKEN="$oidc_token" STORE_ID="$selected_store" node --input-type=module <<'NODE'
-          import { get } from '@vercel/blob'
-          try {
-            const result = await get('page-auto/relay/current.json', {
-              access: 'private',
-              oidcToken: process.env.OIDC_TOKEN,
-              storeId: process.env.STORE_ID,
-              useCache: false
-            })
-            if (result?.stream) await new Response(result.stream).arrayBuffer()
-          } catch (error) {
-            console.error(`Blob relay OIDC probe failed: ${error instanceof Error ? error.name : 'unknown_error'}`)
-            process.exit(1)
-          }
-          NODE
-          unset oidc_token
-          echo "Private Blob relay OIDC probe passed."
+          echo "Relay Blob store id configured. Blob availability is checked at runtime because storage usage limits are external to source deploys."
 
       - name: Deploy source to production with remote Vercel build
         env:
