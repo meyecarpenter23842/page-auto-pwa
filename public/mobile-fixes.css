@@ -17,9 +17,9 @@ body {
 #root { display: flex; justify-content: center; }
 .app-shell {
   width: min(100%, 460px) !important;
-  height: 100dvh !important;
-  min-height: 100svh !important;
-  max-height: 100dvh !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
   margin: 0 auto !important;
   display: flex !important;
   flex-direction: column !important;
@@ -36,6 +36,7 @@ body {
   flex: 1 1 auto !important;
   min-height: 0 !important;
   height: auto !important;
+  padding-bottom: 0 !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
   overscroll-behavior-x: none !important;
@@ -46,8 +47,15 @@ body {
 .main-area::-webkit-scrollbar { display: none; }
 .route-frame { overflow-x: clip !important; }
 .bottom-nav {
-  width: min(100%, 460px) !important;
-  max-width: 460px !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: calc(72px + env(safe-area-inset-bottom)) !important;
+  padding-bottom: env(safe-area-inset-bottom) !important;
+  position: relative !important;
+  left: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  flex: 0 0 calc(72px + env(safe-area-inset-bottom)) !important;
 }
 
 /* Bottom tab labels: centered and stable on narrow iPhones. */
