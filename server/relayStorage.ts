@@ -1,4 +1,5 @@
 import { get, put } from '@vercel/blob'
+import { getVercelOidcToken } from '@vercel/oidc'
 import {
   RELAY_COMMAND_RECORD_PATH,
   RELAY_RECORD_PATH,
@@ -15,8 +16,8 @@ type BlobAuthOptions = {
 }
 
 function blobAuthOptions(): BlobAuthOptions {
-  const oidcToken = process.env.VERCEL_OIDC_TOKEN?.trim()
   const storeId = process.env.PAGE_AUTO_RELAY_BLOB_STORE_ID?.trim()
+  const oidcToken = getVercelOidcToken()
   if (oidcToken && storeId) return { oidcToken, storeId }
 
   const token = process.env.BLOB_READ_WRITE_TOKEN?.trim()
