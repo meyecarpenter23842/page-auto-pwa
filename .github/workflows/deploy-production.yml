@@ -24,6 +24,7 @@ jobs:
     env:
       VERCEL_TEAM_ID: team_964e6EsImAKgZe01NQmUNF7F
       VERCEL_PROJECT_NAME: page-auto-pwa
+      PRODUCTION_URL: https://page-auto-pwa.vercel.app
     steps:
       - uses: actions/checkout@v4
         with:
@@ -94,85 +95,37 @@ jobs:
           printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_TEAM_ID" "$project_id" > .vercel/project.json
           echo "Linked exact Vercel project: $project_name ($project_id)"
 
-      - name: Configure and verify Upstash Redis relay
-        shell: bash
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          set -euo pipefail
-          env_file="$(mktemp)"
-          connect_log="$(mktemp)"
-          cleanup() { rm -f "$env_file" "$connect_log"; }
-          trap cleanup EXIT
-
-          pull_production_env() {
-            rm -f "$env_file"
-            vercel env pull "$env_file" --environment=production --yes --token="$VERCEL_TOKEN" >/dev/null
-          }
-
-          has_redis_env() {
-            if grep -q '^UPSTASH_REDIS_REST_URL=' "$env_file" && grep -q '^UPSTASH_REDIS_REST_TOKEN=' "$env_file"; then return 0; fi
-            if grep -q '^KV_REST_API_URL=' "$env_file" && grep -q '^KV_REST_API_TOKEN=' "$env_file"; then return 0; fi
-            return 1
-          }
-
-          pull_production_env
-          if ! has_redis_env; then
-            echo "Redis env is missing; trying to reconnect existing page-auto-pwa-relay resource."
-            set +e
-            vercel integration resource connect page-auto-pwa-relay "$VERCEL_PROJECT_NAME" \
-              --environment production --yes --token="$VERCEL_TOKEN" >"$connect_log" 2>&1
-            connect_status=$?
-            set -e
-            if [ "$connect_status" -ne 0 ]; then
-              echo "No reusable page-auto-pwa-relay resource was connected; a free Upstash resource will be provisioned."
-            fi
-            pull_production_env
-          fi
-
-          if ! has_redis_env; then
-            vercel integration add upstash/upstash-kv \
-              --name page-auto-pwa-relay \
-              --plan free \
-              --environment production \
-              --token="$VERCEL_TOKEN"
-            pull_production_env
-          fi
-
-          if ! has_redis_env; then
-            echo "Upstash Redis integration did not provide the required production environment variables." >&2
-            exit 1
-          fi
-
-          set -a
-          # shellcheck disable=SC1090
-          source "$env_file"
-          set +a
-          redis_url="${UPSTASH_REDIS_REST_URL:-${KV_REST_API_URL:-}}"
-          redis_token="${UPSTASH_REDIS_REST_TOKEN:-${KV_REST_API_TOKEN:-}}"
-          test -n "$redis_url"
-          test -n "$redis_token"
-
-          probe_file="$(mktemp)"
-          probe_status="$(curl --silent --show-error \
-            --request POST \
-            --output "$probe_file" \
-            --write-out '%{http_code}' \
-            --header "Authorization: Bearer $redis_token" \
-            --header 'Content-Type: application/json' \
-            --data '["PING"]' \
-            "$redis_url")"
-          if [ "$probe_status" != "200" ]; then
-            echo "Upstash Redis PING failed with HTTP $probe_status" >&2
-            rm -f "$probe_file"
-            exit 1
-          fi
-          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));if(x.result!=='PONG')process.exit(1)" "$probe_file"
-          rm -f "$probe_file"
-          unset redis_token
-          echo "Upstash Redis relay probe passed."
-
       - name: Deploy source to production with remote Vercel build
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: vercel deploy --prod --yes --token="$VERCEL_TOKEN"
+
+      - name: Verify production relay Runtime Cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe_file="$(mktemp)"
+          trap 'rm -f "$probe_file"' EXIT
+          dummy_token='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+          dummy_device='00000000000000000000000000000000'
+
+          for attempt in $(seq 1 12); do
+            status="$(curl --silent --show-error \
+              --output "$probe_file" \
+              --write-out '%{http_code}' \
+              --header "Authorization: Bearer $dummy_token" \
+              --header "X-Page-Auto-Device-Id: $dummy_device" \
+              "$PRODUCTION_URL/api/relay/snapshot")"
+
+            if [ "$status" = "401" ] || [ "$status" = "404" ]; then
+              echo "Relay Runtime Cache probe passed with HTTP $status."
+              exit 0
+            fi
+
+            echo "Relay Runtime Cache probe attempt $attempt returned HTTP $status; waiting for production alias propagation."
+            sleep 5
+          done
+
+          echo "Relay Runtime Cache production probe failed." >&2
+          cat "$probe_file" >&2 || true
+          exit 1
