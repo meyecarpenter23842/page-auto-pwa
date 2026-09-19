@@ -22,10 +22,10 @@ export default {
     const credentials = parseRelayCredentials(request, true)
     if (!credentials?.deviceId) return json({ error: 'unauthorized' }, 401)
 
-    const { relay, heartbeat } = await loadRelaySnapshotState()
+    const { relay, heartbeat } = await loadRelaySnapshotState(credentials.deviceId)
     if (!relay) return json({ error: 'relay_unclaimed' }, 404)
     if (!relayTokenMatches(relay.tokenHash, credentials.token) || relay.deviceId !== credentials.deviceId) {
-      return json({ error: 'unauthorized' }, 401)
+      return json({ error: 'relay_auth_mismatch' }, 401)
     }
 
     const heartbeatAt = heartbeat?.deviceId === relay.deviceId ? heartbeat.updatedAt : relay.updatedAt

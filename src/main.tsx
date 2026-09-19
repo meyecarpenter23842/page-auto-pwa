@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import ReactDOM from 'react-dom/client'
-import { BridgeAuthError, PairingRequiredError, acceptBridgeSnapshot, fetchBridgeSnapshot, isSnapshotFresh, type BridgePage, type BridgeSnapshot } from './bridge'
+import { BridgeAuthError, BridgeRelayUnclaimedError, PairingRequiredError, acceptBridgeSnapshot, fetchBridgeSnapshot, isSnapshotFresh, type BridgePage, type BridgeSnapshot } from './bridge'
 import { clearRelayPairing, consumePairingFromLocation, loadRelayPairing, parseRelayPairing, saveRelayPairing, type RelayPairing } from './pairing'
 import { ConnectionPanel, OverviewScreen, PageDetailScreen, PageListScreen, ScheduleScreen, isActiveStatus, type ConnectionState } from './ui'
 import { AppBottomNav, AppTopBar, type AppView } from './navigation'
@@ -34,6 +34,7 @@ function useBridge(pairing: RelayPairing | null) {
         setSnapshot(null)
         if (error instanceof PairingRequiredError) setConnection('unpaired')
         else if (error instanceof BridgeAuthError) setConnection('unauthorized')
+        else if (error instanceof BridgeRelayUnclaimedError) setConnection('unclaimed')
         else setConnection('offline')
       }
     }
