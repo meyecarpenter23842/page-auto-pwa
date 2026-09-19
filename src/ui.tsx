@@ -3,7 +3,7 @@ import type { RelayPairing } from './pairing'
 import type { BridgeLog, BridgePage, BridgeSchedule, BridgeSnapshot, RuntimeStatus, WindowRuntimeStatus } from './bridge'
 import { GroupPostRemoteControl } from './remoteControl'
 
-export type ConnectionState = 'connecting' | 'online' | 'offline' | 'unpaired' | 'unauthorized'
+export type ConnectionState = 'connecting' | 'online' | 'offline' | 'unpaired' | 'unclaimed' | 'unauthorized'
 export type AppView = 'overview' | 'pages' | 'schedule'
 type PageDetailTab = 'overview' | 'schedule' | 'groups' | 'logs'
 type PageFilter = 'all' | 'running' | 'scheduled'
@@ -64,7 +64,8 @@ export function BottomNav({current,onNavigate}:{current:AppView;onNavigate:(v:Ap
 export function ConnectionPanel({pairing,connection,pairingInput,pairingError,onInput,onApply,onForget}:{pairing:RelayPairing|null;connection:ConnectionState;pairingInput:string;pairingError:string|null;onInput:(v:string)=>void;onApply:()=>void;onForget:()=>void}){
   if(pairing&&connection==='online')return null
   if(!pairing)return <section className="connection-panel"><div className="connection-panel__icon"><Icon name="info"/></div><div className="connection-panel__body"><strong>Ghép PWA với PAGE-AUTO</strong><p>Mở <b>data/pwa-relay/pairing.txt</b> trên máy tính, mở link ghép hoặc dán mã bên dưới.</p><div className="pairing-form"><input value={pairingInput} onChange={e=>onInput(e.target.value)} placeholder="Dán link hoặc mã ghép" autoCapitalize="off" autoCorrect="off"/><button type="button" onClick={onApply}>Ghép máy</button></div>{pairingError&&<small className="form-error">{pairingError}</small>}</div></section>
-  return <section className="connection-panel connection-panel--warning"><div className="connection-panel__icon"><Icon name="clock"/></div><div className="connection-panel__body"><strong>{connection==='unauthorized'?'Mã ghép không khớp máy tính':'Chưa nhận được dữ liệu từ máy tính'}</strong><p>{connection==='unauthorized'?'Ghép lại bằng link mới trong pairing.txt của PAGE-AUTO.':'Mở PAGE-AUTO trên Windows. Dashboard sẽ tự nối lại khi Desktop hoạt động.'}</p>{connection==='unauthorized'&&<button className="secondary-action" type="button" onClick={onForget}>Đổi máy</button>}</div></section>
+  const isUnauthorized=connection==='unauthorized',isUnclaimed=connection==='unclaimed'
+  return <section className="connection-panel connection-panel--warning"><div className="connection-panel__icon"><Icon name="clock"/></div><div className="connection-panel__body"><strong>{isUnauthorized?'Mã ghép không khớp máy tính':isUnclaimed?'Máy tính chưa claim mã ghép này':'Máy tính đang offline hoặc dữ liệu đã cũ'}</strong><p>{isUnauthorized?'Ghép lại bằng link mới trong pairing.txt của PAGE-AUTO.':isUnclaimed?'Mở PAGE-AUTO bằng đúng mã này, chờ Desktop gửi dữ liệu rồi thử lại.':'Mở PAGE-AUTO trên Windows. Dashboard sẽ tự nối lại khi Desktop hoạt động.'}</p>{isUnauthorized&&<button className="secondary-action" type="button" onClick={onForget}>Đổi máy</button>}</div></section>
 }
 
 export function OverviewScreen({snapshot,pages,online,onSelectPage}:{snapshot:BridgeSnapshot|null;pages:BridgePage[];online:boolean;onSelectPage:(p:BridgePage)=>void}){

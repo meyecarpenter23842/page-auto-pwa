@@ -41,7 +41,9 @@ export default {
     if (request.method !== 'GET' && request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
     if (!relayStorageConfigured()) return json({ error: 'relay_storage_not_configured' }, 503)
 
-    const state = await loadRelayCommandState()
+    const credentials = parseRelayCredentials(request, true)
+    if (!credentials?.deviceId) return json({ error: 'unauthorized' }, 401)
+    const state = await loadRelayCommandState(credentials.deviceId)
     const authorization = authorize(request, state)
     if (authorization instanceof Response) return authorization
     const record = state.command

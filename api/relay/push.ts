@@ -38,7 +38,7 @@ export default {
     }
     if (!isRelayBridgeSnapshot(snapshot)) return json({ error: 'invalid_snapshot' }, 400)
 
-    const existing = await loadRelayRecord()
+    const existing = await loadRelayRecord(credentials.deviceId)
     if (existing && !relayTokenMatches(existing.tokenHash, credentials.token)) return json({ error: 'unauthorized' }, 401)
     if (existing && existing.deviceId !== credentials.deviceId) return json({ error: 'device_mismatch' }, 409)
 

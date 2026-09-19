@@ -153,6 +153,13 @@ export class BridgeAuthError extends Error {
   }
 }
 
+export class BridgeRelayUnclaimedError extends Error {
+  constructor() {
+    super('Máy tính chưa gửi dữ liệu ghép PWA.')
+    this.name = 'BridgeRelayUnclaimedError'
+  }
+}
+
 export class RemoteControlUnavailableError extends Error {
   constructor(message = 'Remote Control chưa khả dụng cho nguồn snapshot tùy chỉnh.') {
     super(message)
@@ -253,6 +260,10 @@ export async function fetchBridgeSnapshot(pairing: RelayPairing | null, signal?:
       clearCachedSnapshot(cacheKey)
       throw new BridgeAuthError()
     }
+    if (response.status === 404) {
+      clearCachedSnapshot(cacheKey)
+      throw new BridgeRelayUnclaimedError()
+    }
     if (!response.ok) throw new Error(`Bridge HTTP ${response.status}`)
     const payload = await response.json() as unknown
     if (!isBridgeSnapshot(payload)) throw new Error('Bridge snapshot không hợp lệ.')
@@ -260,7 +271,7 @@ export async function fetchBridgeSnapshot(pairing: RelayPairing | null, signal?:
     if (isSnapshotFresh(payload)) return rememberSnapshot(cacheKey, payload)
     return freshCachedSnapshot(cacheKey) ?? payload
   } catch (error) {
-    if (error instanceof BridgeAuthError || signal?.aborted) throw error
+    if (error instanceof BridgeAuthError || error instanceof BridgeRelayUnclaimedError || signal?.aborted) throw error
     const cached = freshCachedSnapshot(cacheKey)
     if (cached) return cached
     throw error

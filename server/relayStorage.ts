@@ -6,9 +6,12 @@ import {
   type RelayRecord
 } from './relayProtocol.js'
 
-const RELAY_RECORD_KEY = 'page-auto:relay:record:v1'
-const RELAY_HEARTBEAT_KEY = 'page-auto:relay:heartbeat:v1'
-const RELAY_COMMAND_KEY = 'page-auto:relay:command:v1'
+const LEGACY_RELAY_RECORD_KEY = 'page-auto:relay:record:v1'
+const LEGACY_RELAY_HEARTBEAT_KEY = 'page-auto:relay:heartbeat:v1'
+const LEGACY_RELAY_COMMAND_KEY = 'page-auto:relay:command:v1'
+const RELAY_RECORD_KEY_PREFIX = 'page-auto:relay:record:v2:'
+const RELAY_HEARTBEAT_KEY_PREFIX = 'page-auto:relay:heartbeat:v2:'
+const RELAY_COMMAND_KEY_PREFIX = 'page-auto:relay:command:v2:'
 const RELAY_RECORD_STORAGE_TTL_SECONDS = 30 * 24 * 60 * 60
 const RELAY_HEARTBEAT_STORAGE_TTL_SECONDS = 5 * 60
 const RELAY_COMMAND_STORAGE_TTL_SECONDS = 5 * 60
@@ -27,6 +30,10 @@ export interface RelaySnapshotState {
 
 export interface RelayCommandState extends RelaySnapshotState {
   command: RelayCommandRecord | null
+}
+
+function deviceScopedKey(prefix: string, deviceId: string): string {
+  return `${prefix}${deviceId}`
 }
 
 function isRelayHeartbeat(value: unknown): value is RelayHeartbeat {
@@ -60,28 +67,46 @@ export function relayStorageConfigured(): boolean {
   return true
 }
 
-export async function loadRelayRecord(): Promise<RelayRecord | null> {
-  return parseRelayRecord(await getCache().get(RELAY_RECORD_KEY))
+async function loadRecordForDevice(cache: ReturnType<typeof getCache>, deviceId: string): Promise<RelayRecord | null> {
+  const scoped = parseRelayRecord(await cache.get(deviceScopedKey(RELAY_RECORD_KEY_PREFIX, deviceId)))
+  if (scoped) return scoped
+  const legacy = parseRelayRecord(await cache.get(LEGACY_RELAY_RECORD_KEY))
+  return legacy?.deviceId === deviceId ? legacy : null
 }
 
-export async function loadRelaySnapshotState(): Promise<RelaySnapshotState> {
+async function loadHeartbeatForDevice(cache: ReturnType<typeof getCache>, deviceId: string): Promise<RelayHeartbeat | null> {
+  const scoped = parseRelayHeartbeat(await cache.get(deviceScopedKey(RELAY_HEARTBEAT_KEY_PREFIX, deviceId)))
+  if (scoped) return scoped
+  const legacy = parseRelayHeartbeat(await cache.get(LEGACY_RELAY_HEARTBEAT_KEY))
+  return legacy?.deviceId === deviceId ? legacy : null
+}
+
+async function loadCommandForDevice(cache: ReturnType<typeof getCache>, deviceId: string): Promise<RelayCommandRecord | null> {
+  const scoped = parseRelayCommandRecord(await cache.get(deviceScopedKey(RELAY_COMMAND_KEY_PREFIX, deviceId)))
+  if (scoped) return scoped
+  const legacy = parseRelayCommandRecord(await cache.get(LEGACY_RELAY_COMMAND_KEY))
+  return legacy?.deviceId === deviceId ? legacy : null
+}
+
+export async function loadRelayRecord(deviceId: string): Promise<RelayRecord | null> {
+  return loadRecordForDevice(getCache(), deviceId)
+}
+
+export async function loadRelaySnapshotState(deviceId: string): Promise<RelaySnapshotState> {
   const cache = getCache()
   const [relay, heartbeat] = await Promise.all([
-    cache.get(RELAY_RECORD_KEY),
-    cache.get(RELAY_HEARTBEAT_KEY)
+    loadRecordForDevice(cache, deviceId),
+    loadHeartbeatForDevice(cache, deviceId)
   ])
-  return {
-    relay: parseRelayRecord(relay),
-    heartbeat: parseRelayHeartbeat(heartbeat)
-  }
+  return { relay, heartbeat }
 }
 
 export async function saveRelayRecord(record: RelayRecord): Promise<void> {
   const cache = getCache()
   await Promise.all([
-    cache.set(RELAY_RECORD_KEY, record, { ttl: RELAY_RECORD_STORAGE_TTL_SECONDS }),
+    cache.set(deviceScopedKey(RELAY_RECORD_KEY_PREFIX, record.deviceId), record, { ttl: RELAY_RECORD_STORAGE_TTL_SECONDS }),
     cache.set(
-      RELAY_HEARTBEAT_KEY,
+      deviceScopedKey(RELAY_HEARTBEAT_KEY_PREFIX, record.deviceId),
       { deviceId: record.deviceId, updatedAt: record.updatedAt } satisfies RelayHeartbeat,
       { ttl: RELAY_HEARTBEAT_STORAGE_TTL_SECONDS }
     )
@@ -90,7 +115,7 @@ export async function saveRelayRecord(record: RelayRecord): Promise<void> {
 
 export async function touchRelayHeartbeat(deviceId: string, updatedAt = Date.now()): Promise<void> {
   await getCache().set(
-    RELAY_HEARTBEAT_KEY,
+    deviceScopedKey(RELAY_HEARTBEAT_KEY_PREFIX, deviceId),
     { deviceId, updatedAt } satisfies RelayHeartbeat,
     { ttl: RELAY_HEARTBEAT_STORAGE_TTL_SECONDS }
   )
@@ -100,24 +125,24 @@ export function relayHeartbeatNeedsTouch(heartbeat: RelayHeartbeat | null, devic
   return !heartbeat || heartbeat.deviceId !== deviceId || now - heartbeat.updatedAt >= RELAY_HEARTBEAT_TOUCH_INTERVAL_MS
 }
 
-export async function loadRelayCommandRecord(): Promise<RelayCommandRecord | null> {
-  return parseRelayCommandRecord(await getCache().get(RELAY_COMMAND_KEY))
+export async function loadRelayCommandRecord(deviceId: string): Promise<RelayCommandRecord | null> {
+  return loadCommandForDevice(getCache(), deviceId)
 }
 
-export async function loadRelayCommandState(): Promise<RelayCommandState> {
+export async function loadRelayCommandState(deviceId: string): Promise<RelayCommandState> {
   const cache = getCache()
   const [relay, command, heartbeat] = await Promise.all([
-    cache.get(RELAY_RECORD_KEY),
-    cache.get(RELAY_COMMAND_KEY),
-    cache.get(RELAY_HEARTBEAT_KEY)
+    loadRecordForDevice(cache, deviceId),
+    loadCommandForDevice(cache, deviceId),
+    loadHeartbeatForDevice(cache, deviceId)
   ])
-  return {
-    relay: parseRelayRecord(relay),
-    command: parseRelayCommandRecord(command),
-    heartbeat: parseRelayHeartbeat(heartbeat)
-  }
+  return { relay, command, heartbeat }
 }
 
 export async function saveRelayCommandRecord(record: RelayCommandRecord): Promise<void> {
-  await getCache().set(RELAY_COMMAND_KEY, record, { ttl: RELAY_COMMAND_STORAGE_TTL_SECONDS })
+  await getCache().set(
+    deviceScopedKey(RELAY_COMMAND_KEY_PREFIX, record.deviceId),
+    record,
+    { ttl: RELAY_COMMAND_STORAGE_TTL_SECONDS }
+  )
 }
